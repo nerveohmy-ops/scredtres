@@ -12,7 +12,9 @@ import {
   Check,
   Download,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  Tag,
+  Copy
 } from 'lucide-react';
 import { CATEGORIES, ORDER_STATUSES, DEFAULT_SIZES } from '../data/products';
 import { compressImageFile, formatPrice } from '../utils/store';
@@ -77,6 +79,9 @@ export default function AdminPanel({
   // Promo editor state
   const [promoCode, setPromoCode] = useState('');
   const [promoPercent, setPromoPercent] = useState('10');
+  const [promoError, setPromoError] = useState('');
+  const [isSavingPromo, setIsSavingPromo] = useState(false);
+  const [copiedPromoCode, setCopiedPromoCode] = useState('');
 
   // Settings local form
   const [freeShipInput, setFreeShipInput] = useState(String(settings.freeShippingThreshold ?? 15000));
@@ -284,15 +289,47 @@ export default function AdminPanel({
   };
 
   // Promo handler
-  const handlePromoSubmit = (e) => {
+  const handlePromoSubmit = async (e) => {
     e.preventDefault();
+    if (!isOwner) return;
+    setPromoError('');
+
     const cleanCode = promoCode.trim().toUpperCase();
-    const pct = Math.min(90, Math.max(1, Number(promoPercent) || 10));
-    if (!cleanCode) return;
+    const pct = Math.min(90, Math.max(1, Math.round(Number(promoPercent) || 10)));
+    if (!/^[A-Z0-9_-]{2,32}$/.test(cleanCode)) {
+      setPromoError('Код: от 2 до 32 символов (латиница A-Z, цифры, _ или -).');
+      haptic.error();
+      return;
+    }
+
+    setIsSavingPromo(true);
+    const res = await onAddPromo({
+      code: cleanCode,
+      discountPercent: pct,
+      createdAt: new Date().toISOString()
+    });
+    setIsSavingPromo(false);
+
+    if (res && res.ok === false) {
+      setPromoError(res.error || 'Не удалось сохранить промокод.');
+      haptic.error();
+      return;
+    }
+
     haptic.success();
-    onAddPromo({ code: cleanCode, discountPercent: pct });
     setPromoCode('');
     setPromoPercent('10');
+  };
+
+  const handleCopyPromo = async (code) => {
+    haptic.light();
+    try {
+      await navigator.clipboard?.writeText(code);
+      setCopiedPromoCode(code);
+      setTimeout(() => {
+        setCopiedPromoCode((curr) => (curr === code ? '' : curr));
+      }, 1500);
+    } catch {}
   };
 
   // Settings handler
@@ -342,6 +379,7 @@ export default function AdminPanel({
     { id: 'products', label: `Товары (${products.length})`, icon: Package },
     { id: 'info', label: `Инфо (${infoItems.length})`, icon: FileText },
     { id: 'orders', label: `Заказы (${orders.length})`, icon: ShoppingBag },
+    { id: 'promos', label: `Промокоды (${promos.length})`, icon: Tag },
     ...(isOwner ? [{ id: 'settings', label: 'Настройки', icon: Settings }] : [])
   ];
 
@@ -355,7 +393,9 @@ export default function AdminPanel({
             {isOwner ? 'Панель владельца' : 'Панель поддержки'}
           </h2>
           <p className="text-xs text-[#777777] mt-0.5">
-            {isOwner ? 'Полный доступ · @dybriansik' : 'Управление каталогом, заказами и инфо'}
+            {isOwner
+              ? 'Полный доступ · @dybriansik'
+              : 'Управление каталогом, заказами, инфо и просмотр промокодов'}
           </p>
         </div>
 
@@ -1015,62 +1055,130 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* ==================== SECTION: SETTINGS (OWNER ONLY) ==================== */}
-      {section === 'settings' && isOwner && (
-        <div className="space-y-6 text-xs">
-          
-          {/* Promo Codes */}
+      {/* ==================== SECTION: PROMOS (VISIBLE TO OWNER & SUPPORT) ==================== */}
+      {section === 'promos' && (
+        <div className="space-y-4 text-xs">
           <div className="p-4 bg-[#080808] border border-[#1a1a1a] rounded-2xl space-y-3">
-            <h3 className="text-sm font-semibold text-white">Промокоды</h3>
-            <form onSubmit={handlePromoSubmit} className="flex gap-2">
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="Код (напр. SCRED10)"
-                className="flex-1 bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2 rounded-full uppercase outline-none"
-              />
-              <input
-                type="number"
-                min="1"
-                max="90"
-                value={promoPercent}
-                onChange={(e) => setPromoPercent(e.target.value)}
-                placeholder="%"
-                className="w-20 bg-black border border-[#222222] focus:border-white text-white px-3 py-2 rounded-full outline-none text-center"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-full bg-white text-black font-semibold cursor-pointer"
-              >
-                +
-              </button>
-            </form>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Промокоды ({promos.length})</h3>
+                <p className="text-[11px] text-[#777777] mt-0.5">
+                  {isOwner
+                    ? 'Скрыты от покупателей — список виден только владельцу и поддержке. Покупатель может лишь ввести код в корзине.'
+                    : 'Скрыты от покупателей. Просмотр доступен поддержке; добавлять и удалять коды может только владелец (@dybriansik).'}
+                </p>
+              </div>
+            </div>
 
-            {promos.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {promos.map((p) => (
-                  <div
-                    key={p.code}
-                    className="px-3 py-1.5 rounded-full bg-black border border-[#222222] flex items-center gap-2 text-white"
+            {isOwner && (
+              <form onSubmit={handlePromoSubmit} className="space-y-2">
+                <div className="flex flex-wrap sm:flex-nowrap gap-2">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => {
+                      setPromoCode(e.target.value.toUpperCase());
+                      if (promoError) setPromoError('');
+                    }}
+                    placeholder="Код (напр. SCRED10)"
+                    className="flex-1 min-w-[160px] bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-full uppercase outline-none"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="90"
+                    value={promoPercent}
+                    onChange={(e) => setPromoPercent(e.target.value)}
+                    placeholder="%"
+                    className="w-20 bg-black border border-[#222222] focus:border-white text-white px-3 py-2.5 rounded-full outline-none text-center"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSavingPromo}
+                    className="px-5 py-2.5 rounded-full bg-white text-black hover:bg-[#dddddd] font-semibold cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
                   >
-                    <span>
-                      {p.code} (-{p.discountPercent}%)
-                    </span>
-                    <button
-                      onClick={() => {
-                        haptic.light();
-                        onDeletePromo(p.code);
-                      }}
-                      className="text-[#666666] hover:text-white cursor-pointer"
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{isSavingPromo ? '...' : 'Добавить'}</span>
+                  </button>
+                </div>
+                {promoError && <p className="text-[11px] text-white px-1">{promoError}</p>}
+              </form>
+            )}
+
+            {promos.length === 0 ? (
+              <div className="p-6 text-center border border-[#161616] rounded-xl bg-black/50 text-[#777777]">
+                {isOwner
+                  ? 'Активных промокодов пока нет. Добавьте первый код выше.'
+                  : 'Владелец ещё не добавил активных промокодов.'}
+              </div>
+            ) : (
+              <div className="space-y-2 pt-1">
+                {promos.map((p) => {
+                  const isCopied = copiedPromoCode === p.code;
+                  return (
+                    <div
+                      key={p.code}
+                      className="px-3.5 py-2.5 rounded-xl bg-black border border-[#222222] flex items-center justify-between gap-2 text-white"
                     >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold tracking-wider text-white">
+                          {p.code}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-[#141414] border border-[#262626] text-[11px] text-[#dddddd]">
+                          -{p.discountPercent}%
+                        </span>
+                        {p.createdAt && (
+                          <span className="text-[10px] text-[#666666]">
+                            {new Date(p.createdAt).toLocaleDateString('ru-RU')}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPromo(p.code)}
+                          title="Скопировать промокод"
+                          className="px-2.5 py-1 rounded-full border border-[#222222] hover:border-white text-[11px] text-[#aaaaaa] hover:text-white inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check className="w-3 h-3 text-white" />
+                              <span>Скопировано</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" />
+                              <span>Копия</span>
+                            </>
+                          )}
+                        </button>
+                        {isOwner && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              haptic.light();
+                              onDeletePromo(p.code);
+                            }}
+                            aria-label={`Удалить промокод ${p.code}`}
+                            className="w-7 h-7 rounded-full border border-[#222222] hover:border-white flex items-center justify-center text-[#777777] hover:text-white cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ==================== SECTION: SETTINGS (OWNER ONLY) ==================== */}
+      {section === 'settings' && isOwner && (
+        <div className="space-y-6 text-xs">
 
           {/* Delivery & Support Contact Settings */}
           <form onSubmit={handleSettingsSubmit} className="p-4 bg-[#080808] border border-[#1a1a1a] rounded-2xl space-y-3">

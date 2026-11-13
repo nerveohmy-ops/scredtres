@@ -111,6 +111,7 @@ export default function App() {
       setPromos(data.promos || []);
     } else {
       setOrders(data.myOrders || []);
+      setPromos([]);
     }
   }, []);
 
