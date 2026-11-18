@@ -153,7 +153,7 @@ export default function CartDrawer({
                       <img
                         src={thumb}
                         alt={item.product.name}
-                        className="w-full h-full object-cover grayscale contrast-125"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <ImageOff className="w-4 h-4 text-[#444444]" />
@@ -271,7 +271,7 @@ export default function CartDrawer({
                 </div>
               )}
               <div className="flex justify-between">
-                <span>Доставка по РФ:</span>
+                <span>Доставка СДЭК:</span>
                 <span>{shippingCost === 0 ? 'Бесплатно' : formatPrice(shippingCost)}</span>
               </div>
               <div className="flex justify-between pt-2 border-t border-[#141414] text-sm text-white font-semibold">

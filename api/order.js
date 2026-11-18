@@ -5,12 +5,32 @@ import { getClientIpHash, checkRateLimit } from '../lib/rateLimit.js';
 import {
   ALLOWED_DELIVERY_METHODS,
   ALLOWED_PAYMENT_METHODS,
+  DELIVERY_METHOD_LABELS,
+  PAYMENT_METHOD_LABELS,
   isTursoConfigured,
   getTursoDb,
   formatTursoError,
   buildOrderStatement,
   readSettings
 } from '../lib/turso.js';
+
+function collectStaffChatIds() {
+  const ids = new Set();
+  const singleKeys = [process.env.ADMIN_CHAT_ID, process.env.SUPPORT_CHAT_ID];
+  for (const raw of singleKeys) {
+    const val = String(raw || '').trim();
+    if (/^-?\d+$/.test(val)) ids.add(val);
+  }
+  const listKeys = [process.env.ADMIN_TG_IDS, process.env.SUPPORT_TG_IDS];
+  for (const raw of listKeys) {
+    if (!raw || typeof raw !== 'string') continue;
+    for (const part of raw.split(',')) {
+      const val = part.trim();
+      if (/^\d+$/.test(val)) ids.add(val);
+    }
+  }
+  return Array.from(ids);
+}
 
 const PROMO_CODE_RE = /^[A-Z0-9_-]{2,32}$/;
 
@@ -48,7 +68,6 @@ export default async function handler(req, res) {
   }
 
   const TOKEN = getBotToken();
-  const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '';
   const API_BASE = `https://api.telegram.org/bot${TOKEN}`;
 
   try {
@@ -245,16 +264,25 @@ export default async function handler(req, res) {
       })
       .join('\n');
 
+    const deliveryLabel =
+      DELIVERY_METHOD_LABELS[finalOrder.delivery?.method] || 'СДЭК ПВЗ';
+    const paymentLabel =
+      PAYMENT_METHOD_LABELS[finalOrder.paymentMethod] || 'СБП / Карта РФ';
+
     const buyerMessage = [
       `<b>SCREDTRES — Заказ принят: ${escapeHtml(finalOrder.orderId)}</b>`,
       '',
       itemsLines,
       '',
       `Итого: <b>${escapeHtml(finalOrder.pricing?.total ?? 0)} ₽</b>`,
-      `Доставка: ${escapeHtml(finalOrder.delivery?.city)}, ${escapeHtml(finalOrder.delivery?.address)}`,
+      `Оплата: ${escapeHtml(paymentLabel)}`,
+      `Доставка: ${escapeHtml(deliveryLabel)} — ${escapeHtml(finalOrder.delivery?.city)}, ${escapeHtml(finalOrder.delivery?.address)}`,
+      finalOrder.comment ? `Комментарий: ${escapeHtml(finalOrder.comment)}` : null,
       '',
       `Связь с владельцем по выкупу и трек-номеру: @${escapeHtml(supportHandle)}`
-    ].join('\n');
+    ]
+      .filter((line) => line !== null)
+      .join('\n');
 
     const adminMessage = [
       `<b>Новый заказ ${escapeHtml(finalOrder.orderId)}</b>`,
@@ -267,13 +295,15 @@ export default async function handler(req, res) {
       itemsLines,
       '',
       `Сумма: <b>${escapeHtml(finalOrder.pricing?.total ?? 0)} ₽</b>`,
-      `Доставка: ${escapeHtml(finalOrder.delivery?.method)} — ${escapeHtml(finalOrder.delivery?.city)}, ${escapeHtml(finalOrder.delivery?.address)}`,
+      `Оплата: ${escapeHtml(paymentLabel)}`,
+      `Доставка: ${escapeHtml(deliveryLabel)} — ${escapeHtml(finalOrder.delivery?.city)}, ${escapeHtml(finalOrder.delivery?.address)}`,
       finalOrder.comment ? `Комментарий: ${escapeHtml(finalOrder.comment)}` : null
     ]
-      .filter(Boolean)
+      .filter((line) => line !== null)
       .join('\n');
 
     const deliveries = [];
+    const staffChatIds = collectStaffChatIds();
 
     if (TOKEN && targetChatId) {
       deliveries.push(
@@ -289,18 +319,20 @@ export default async function handler(req, res) {
       );
     }
 
-    if (TOKEN && ADMIN_CHAT_ID) {
-      deliveries.push(
-        fetch(`${API_BASE}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: ADMIN_CHAT_ID,
-            text: adminMessage,
-            parse_mode: 'HTML'
+    if (TOKEN && staffChatIds.length > 0) {
+      for (const staffChatId of staffChatIds) {
+        deliveries.push(
+          fetch(`${API_BASE}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: staffChatId,
+              text: adminMessage,
+              parse_mode: 'HTML'
+            })
           })
-        })
-      );
+        );
+      }
     }
 
     await Promise.allSettled(deliveries);
@@ -310,7 +342,7 @@ export default async function handler(req, res) {
       configured,
       orderRecord: finalOrder,
       dispatchedToBuyer: Boolean(TOKEN && targetChatId),
-      dispatchedToAdmin: Boolean(TOKEN && ADMIN_CHAT_ID)
+      dispatchedToAdmin: Boolean(TOKEN && staffChatIds.length > 0)
     });
   } catch (err) {
     console.error('Order dispatch error:', err);

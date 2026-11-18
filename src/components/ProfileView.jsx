@@ -9,7 +9,11 @@ import {
   Plus,
   ExternalLink
 } from 'lucide-react';
-import { ORDER_STATUSES } from '../data/products';
+import {
+  ORDER_STATUSES,
+  getDeliveryMethodLabel,
+  getPaymentMethodLabel
+} from '../data/products';
 import { formatPrice } from '../utils/store';
 import { getTelegramUser, haptic, openTelegramLink } from '../utils/telegram';
 import { ROLES, getRoleLabel, isLocalDevEnvironment, canManageInfo } from '../utils/roles';
@@ -115,6 +119,39 @@ export default function ProfileView({
                     </div>
                   ))}
                 </div>
+
+                {(order.delivery?.city || order.delivery?.address || order.paymentMethod) && (
+                  <div className="text-[11px] text-[#777777] space-y-0.5 pt-1">
+                    {(order.delivery?.city || order.delivery?.address) && (
+                      <div>
+                        Доставка:{' '}
+                        <span className="text-[#cccccc]">
+                          {getDeliveryMethodLabel(order.delivery?.method)} — {order.delivery?.city},{' '}
+                          {order.delivery?.address}
+                        </span>
+                      </div>
+                    )}
+                    {order.paymentMethod && (
+                      <div>
+                        Оплата:{' '}
+                        <span className="text-[#cccccc]">
+                          {getPaymentMethodLabel(order.paymentMethod)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {order.comment && (
+                  <div className="p-2.5 bg-black border border-[#222222] rounded-lg space-y-0.5">
+                    <div className="text-[10px] uppercase tracking-wider text-[#666666]">
+                      Комментарий к заказу
+                    </div>
+                    <p className="text-xs text-[#e5e5e5] whitespace-pre-line break-words select-text">
+                      {order.comment}
+                    </p>
+                  </div>
+                )}
 
                 {order.trackingNumber && (
                   <div className="text-[11px] text-[#aaaaaa] pt-1">

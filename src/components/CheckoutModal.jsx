@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { X, Check, AlertCircle } from 'lucide-react';
 import { getTelegramUser, submitOrderToServer, openTelegramLink, haptic } from '../utils/telegram';
 import { formatPrice } from '../utils/store';
+import {
+  PAYMENT_METHODS,
+  getDeliveryMethodLabel,
+  getPaymentMethodLabel
+} from '../data/products';
+
+const DELIVERY_METHOD = 'cdek_pvz';
 
 export default function CheckoutModal({ 
   isOpen, 
@@ -22,7 +29,6 @@ export default function CheckoutModal({
   const [telegramUsername, setTelegramUsername] = useState(
     tgUser.username ? `@${tgUser.username}` : ''
   );
-  const [deliveryMethod, setDeliveryMethod] = useState('cdek_pvz');
   const [city, setCity] = useState('Москва');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('sbp_card');
@@ -90,7 +96,7 @@ export default function CheckoutModal({
         telegramId: tgUser.id
       },
       delivery: {
-        method: deliveryMethod,
+        method: DELIVERY_METHOD,
         city: cleanCity,
         address: cleanAddress
       },
@@ -125,6 +131,7 @@ export default function CheckoutModal({
 
     setIsSubmitting(false);
     setOrderComplete(finalOrder);
+    setComment('');
     haptic.success();
     onOrderSuccess(finalOrder);
   };
@@ -171,9 +178,58 @@ export default function CheckoutModal({
 
               <p className="text-xs text-[#888888] max-w-sm mx-auto leading-relaxed">
                 {hasPreOrderItems
-                  ? `В заказе есть позиции под заказ из Китая. Поддержка (@${supportHandle}) свяжется с вами для подтверждения выкупа и расчёта сроков доставки.`
-                  : `Поддержка (@${supportHandle}) свяжется с вами в Telegram для подтверждения заказа и отправки трек-номера СДЭК.`}
+                  ? `В заказе есть позиции под заказ (7-15 дней). Заказ передан в панель магазина — поддержка (@${supportHandle}) свяжется с вами для подтверждения.`
+                  : `Заказ передан в панель магазина. Поддержка (@${supportHandle}) свяжется с вами в Telegram для подтверждения и отправки трек-номера СДЭК.`}
               </p>
+
+              {/* Formed Order Receipt Summary (including comment) */}
+              <div className="text-left p-4 bg-black border border-[#1f1f1f] rounded-2xl space-y-2.5 text-xs max-w-sm mx-auto">
+                <div className="space-y-1">
+                  {(orderComplete.items || []).map((it, idx) => (
+                    <div key={idx} className="flex justify-between gap-2 text-[11px]">
+                      <span className="text-[#cccccc] truncate">
+                        {it.name} ({it.size}) × {it.quantity}
+                      </span>
+                      <span className="text-white shrink-0">
+                        {formatPrice(it.price * it.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-[#141414] space-y-1 text-[11px] text-[#999999]">
+                  <div>
+                    Доставка:{' '}
+                    <span className="text-white">
+                      {getDeliveryMethodLabel(orderComplete.delivery?.method)}
+                    </span>{' '}
+                    — {orderComplete.delivery?.city}, {orderComplete.delivery?.address}
+                  </div>
+                  <div>
+                    Оплата:{' '}
+                    <span className="text-white">
+                      {getPaymentMethodLabel(orderComplete.paymentMethod)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs pt-1">
+                    <span className="text-[#888888]">Итого:</span>
+                    <span className="font-bold text-white">
+                      {formatPrice(orderComplete.pricing?.total)}
+                    </span>
+                  </div>
+                </div>
+
+                {orderComplete.comment && (
+                  <div className="p-2.5 bg-[#080808] border border-[#242424] rounded-xl space-y-1">
+                    <div className="text-[10px] uppercase tracking-wider text-[#777777]">
+                      Комментарий к заказу
+                    </div>
+                    <p className="text-xs text-white whitespace-pre-line break-words">
+                      {orderComplete.comment}
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-2.5 pt-2 max-w-xs mx-auto">
                 <button
@@ -253,60 +309,20 @@ export default function CheckoutModal({
                 </div>
               </div>
 
-              {/* Delivery method */}
+              {/* Delivery method (СДЭК only) */}
               <div className="space-y-3 pt-2 border-t border-[#141414]">
                 <span className="text-[#888888] uppercase tracking-wider block font-medium">
                   Доставка
                 </span>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      haptic.select();
-                      setDeliveryMethod('cdek_pvz');
-                    }}
-                    className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                      deliveryMethod === 'cdek_pvz'
-                        ? 'border-white bg-[#141414] text-white'
-                        : 'border-[#222222] text-[#666666] hover:border-[#444444]'
-                    }`}
-                  >
-                    <div className="font-medium text-xs">СДЭК ПВЗ</div>
-                    <div className="text-[10px] text-[#777777]">По РФ и СНГ</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      haptic.select();
-                      setDeliveryMethod('cdek_courier');
-                    }}
-                    className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                      deliveryMethod === 'cdek_courier'
-                        ? 'border-white bg-[#141414] text-white'
-                        : 'border-[#222222] text-[#666666] hover:border-[#444444]'
-                    }`}
-                  >
-                    <div className="font-medium text-xs">Курьер</div>
-                    <div className="text-[10px] text-[#777777]">До двери</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      haptic.select();
-                      setDeliveryMethod('post_ru');
-                    }}
-                    className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                      deliveryMethod === 'post_ru'
-                        ? 'border-white bg-[#141414] text-white'
-                        : 'border-[#222222] text-[#666666] hover:border-[#444444]'
-                    }`}
-                  >
-                    <div className="font-medium text-xs">Почта</div>
-                    <div className="text-[10px] text-[#777777]">По всему миру</div>
-                  </button>
+                <div className="p-3 rounded-xl border border-white/25 bg-[#111111] flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-xs text-white">СДЭК · Пункт выдачи (ПВЗ)</div>
+                    <div className="text-[10px] text-[#888888] mt-0.5">По РФ и СНГ</div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-white text-black text-[10px] font-semibold uppercase tracking-wider shrink-0">
+                    СДЭК
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -324,33 +340,28 @@ export default function CheckoutModal({
 
                   <div className="sm:col-span-2">
                     <label className="block text-[11px] text-[#666666] mb-1">
-                      {deliveryMethod === 'cdek_pvz' ? 'Адрес ПВЗ СДЭК *' : 'Улица, дом, квартира *'}
+                      Адрес ПВЗ СДЭК *
                     </label>
                     <input
                       type="text"
                       required
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      placeholder={deliveryMethod === 'cdek_pvz' ? 'ул. Тверская, 12' : 'ул. Ленина, д. 5, кв. 10'}
+                      placeholder="ул. Тверская, 12"
                       className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Payment choice */}
+              {/* Payment choice (without Telegram Stars) */}
               <div className="space-y-3 pt-2 border-t border-[#141414]">
                 <span className="text-[#888888] uppercase tracking-wider block font-medium">
                   Оплата
                 </span>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'sbp_card', label: 'СБП / Карта РФ' },
-                    { id: 'crypto', label: 'USDT (TRC-20)' },
-                    { id: 'stars', label: 'Telegram Stars ⭐' },
-                    { id: 'manager', label: 'Через менеджера' }
-                  ].map((p) => (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {PAYMENT_METHODS.map((p) => (
                     <button
                       key={p.id}
                       type="button"

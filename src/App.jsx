@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Plus, MessageCircle, SearchX, Package, AlertCircle, X } from 'lucide-react';
+import { Plus, MessageCircle, SearchX, Package, AlertCircle, X, ShoppingBag, Check } from 'lucide-react';
 import { store } from './utils/store';
 import { fetchCatalogBootstrap, sendAdminAction } from './utils/api';
 import {
@@ -61,7 +61,6 @@ export default function App() {
   const role = resolveUserRole(tgUser, devRoleOverride, serverRole);
   const isStaff = canManageProducts(role);
   const supportUsername = (settings?.supportUsername || 'dybriansik').replace(/^@/, '');
-  const ownerUsername = (settings?.ownerUsername || 'dybriansik').replace(/^@/, '');
 
   // Navigation & Filters
   const [activeTab, setActiveTab] = useState('catalog');
@@ -78,9 +77,11 @@ export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutSummary, setCheckoutSummary] = useState(null);
+  const [cartToast, setCartToast] = useState(null);
 
   const catalogRef = useRef(null);
   const lastSyncRef = useRef(0);
+  const cartToastTimerRef = useRef(null);
 
   const syncCatalogFromServer = useCallback(async (force = false) => {
     const now = Date.now();
@@ -130,6 +131,7 @@ export default function App() {
     return () => {
       document.removeEventListener('visibilitychange', handleFocusOrVisible);
       window.removeEventListener('focus', handleFocusOrVisible);
+      if (cartToastTimerRef.current) clearTimeout(cartToastTimerRef.current);
     };
   }, [syncCatalogFromServer]);
 
@@ -299,6 +301,10 @@ export default function App() {
       }
       return [...prev, { product, size: chosenSize, quantity }];
     });
+
+    setCartToast({ name: product.name, size: chosenSize });
+    if (cartToastTimerRef.current) clearTimeout(cartToastTimerRef.current);
+    cartToastTimerRef.current = setTimeout(() => setCartToast(null), 3200);
   };
 
   const handleUpdateCartQuantity = (productId, size, newQuantity) => {
@@ -476,7 +482,10 @@ export default function App() {
       <Header
         cartCount={cartCount}
         favoritesCount={favorites.length}
-        onOpenCart={() => setCartOpen(true)}
+        onOpenCart={() => {
+          setCartToast(null);
+          setCartOpen(true);
+        }}
         onOpenFavorites={() => {
           setSearchOpen(false);
           setActiveTab('favorites');
@@ -654,6 +663,7 @@ export default function App() {
             devRoleOverride={devRoleOverride}
             onChangeDevRole={setDevRoleOverride}
             onOpenAdminPanel={() => {
+              syncCatalogFromServer(true);
               setActiveTab('admin');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
@@ -695,8 +705,12 @@ export default function App() {
         onSelectTab={(tab) => {
           setSearchOpen(false);
           if (tab === 'cart') {
+            setCartToast(null);
             setCartOpen(true);
             return;
+          }
+          if (tab === 'admin' || tab === 'profile') {
+            syncCatalogFromServer(true);
           }
           setActiveTab(tab);
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -705,6 +719,35 @@ export default function App() {
         favoritesCount={favorites.length}
         role={role}
       />
+
+      {/* Quick Cart Toast */}
+      {cartToast && !cartOpen && !checkoutOpen && (
+        <div className="fixed bottom-18 sm:bottom-20 left-4 right-4 z-40 max-w-md mx-auto pointer-events-auto">
+          <div className="px-3.5 py-2.5 rounded-2xl bg-[#111111]/95 backdrop-blur-md border border-[#2c2c2c] shadow-2xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-full bg-white text-black flex items-center justify-center shrink-0">
+                <Check className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-white truncate">
+                Добавлено: <span className="font-medium">{cartToast.name}</span>{' '}
+                <span className="text-[#888888]">({cartToast.size})</span>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                haptic.light();
+                setCartToast(null);
+                setCartOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-full bg-white text-black hover:bg-[#dddddd] text-[11px] font-semibold uppercase tracking-wider shrink-0 inline-flex items-center gap-1 cursor-pointer"
+            >
+              <ShoppingBag className="w-3 h-3" />
+              <span>Корзина</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modals & Drawers */}
       {selectedProduct && (
@@ -715,7 +758,6 @@ export default function App() {
           isFavorite={favorites.includes(selectedProduct.id)}
           onToggleFavorite={handleToggleFavorite}
           supportUsername={supportUsername}
-          ownerUsername={ownerUsername}
         />
       )}
 

@@ -104,6 +104,7 @@ export default async function handler(req, res) {
       const safeTotal = escapeHtml(Number(orderData?.pricing?.total) || 0);
       const safeCity = escapeHtml(orderData?.delivery?.city || '');
       const safeAddress = escapeHtml(orderData?.delivery?.address || '');
+      const safeComment = escapeHtml(String(orderData?.comment || '').trim());
 
       await fetch(`${API_BASE}/sendMessage`, {
         method: 'POST',
@@ -113,8 +114,9 @@ export default async function handler(req, res) {
           text:
             `<b>ЗАКАЗ ПРИНЯТ: ${safeOrderId}</b>\n\n` +
             `Сумма: ${safeTotal} ₽\n` +
-            `Доставка: ${safeCity}, ${safeAddress}\n\n` +
-            'Связь с владельцем: @dybriansik',
+            `Доставка: СДЭК ПВЗ — ${safeCity}, ${safeAddress}` +
+            (safeComment ? `\nКомментарий: ${safeComment}` : '') +
+            `\n\nСвязь с владельцем: @dybriansik`,
           parse_mode: 'HTML'
         })
       });

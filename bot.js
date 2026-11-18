@@ -154,6 +154,7 @@ async function pollUpdates(token) {
               const safeTotal = escapeHtml(Number(orderData?.pricing?.total) || 0);
               const safeCity = escapeHtml(orderData?.delivery?.city || '');
               const safeAddress = escapeHtml(orderData?.delivery?.address || '');
+              const safeComment = escapeHtml(String(orderData?.comment || '').trim());
 
               await tgPost(
                 'sendMessage',
@@ -162,8 +163,9 @@ async function pollUpdates(token) {
                   text:
                     `<b>ЗАКАЗ ПРИНЯТ: ${safeOrderId}</b>\n\n` +
                     `Сумма: ${safeTotal} ₽\n` +
-                    `Доставка: ${safeCity}, ${safeAddress}\n\n` +
-                    'Менеджер свяжется с вами для отправки трек-номера СДЭК.',
+                    `Доставка: СДЭК ПВЗ — ${safeCity}, ${safeAddress}` +
+                    (safeComment ? `\nКомментарий: ${safeComment}` : '') +
+                    '\n\nМенеджер свяжется с вами для отправки трек-номера СДЭК.',
                   parse_mode: 'HTML'
                 },
                 token

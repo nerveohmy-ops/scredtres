@@ -79,40 +79,51 @@ export default function FavoritesView({
                 haptic.light();
                 onSelectProduct(product);
               }}
-              className="group flex flex-col justify-between cursor-pointer"
+              className="group flex flex-col rounded-2xl bg-[#090909] border border-[#1b1b1b] hover:border-[#383838] overflow-hidden transition-all duration-300 cursor-pointer"
             >
-              <div className="relative aspect-[3/4] bg-[#080808] border border-[#161616] rounded-xl overflow-hidden">
+              <div className="relative aspect-[4/5] bg-[#111111] overflow-hidden">
                 <FavoriteProductImage src={product.images?.[0]} alt={product.name} />
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     haptic.light();
                     onToggleFavorite(product.id);
                   }}
-                  className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/70 backdrop-blur-sm border border-[#222222] flex items-center justify-center text-[#888888] hover:text-white transition-colors"
+                  aria-label="Удалить из избранного"
+                  className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="pt-2.5 pb-1 space-y-1">
-                <h4 className="text-xs font-medium text-white line-clamp-1">
-                  {product.name}
-                </h4>
+              <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between gap-2.5">
+                <div className="space-y-1">
+                  {product.brand && (
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#777777] truncate">
+                      {product.brand}
+                    </div>
+                  )}
+                  <h4 className="text-[13px] sm:text-sm font-medium text-white leading-snug line-clamp-2 min-h-[2.6em]">
+                    {product.name}
+                  </h4>
+                </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-white">
+                <div className="space-y-2 pt-1 border-t border-[#151515]">
+                  <span className="text-sm font-bold text-white block">
                     {formatPrice(product.price)}
                   </span>
                   <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       haptic.medium();
                       onAddToCart(product, product.sizes?.[0] || 'ONE SIZE', 1);
                     }}
-                    className="w-8 h-8 rounded-full border border-[#222222] hover:border-white hover:bg-white hover:text-black flex items-center justify-center text-[#888888] transition-colors"
+                    className="w-full py-2 px-3 rounded-xl bg-[#131313] border border-[#262626] hover:bg-white hover:text-black hover:border-white text-[11px] font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 text-white transition-all cursor-pointer"
                   >
                     <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>В корзину</span>
                   </button>
                 </div>
               </div>

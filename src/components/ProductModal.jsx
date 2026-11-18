@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Heart, Plus, Minus, Ruler, ImageOff, Plane, PackageCheck, ShoppingBag, Send } from 'lucide-react';
-import { haptic, openTelegramLink } from '../utils/telegram';
+import { X, Heart, Plus, Minus, Check, Ruler, ImageOff, Plane, PackageCheck, ShoppingBag } from 'lucide-react';
+import { haptic } from '../utils/telegram';
 import { formatPrice } from '../utils/store';
-import { CATEGORIES } from '../data/products';
+import { CATEGORIES, DEFAULT_DELIVERY_DAYS } from '../data/products';
 
 export default function ProductModal({ 
   product, 
@@ -10,8 +10,7 @@ export default function ProductModal({
   onAddToCart, 
   isFavorite, 
   onToggleFavorite,
-  supportUsername = 'dybriansik',
-  ownerUsername = 'dybriansik'
+  supportUsername = 'dybriansik'
 }) {
   const sizesList = product?.sizes && product.sizes.length > 0 ? product.sizes : ['ONE SIZE'];
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -45,7 +44,6 @@ export default function ProductModal({
   const currentImg = images[activeImageIndex];
   const isPreOrder = product.availability === 'pre_order';
   const categoryName = CATEGORIES.find((c) => c.id === product.category)?.name || product.category;
-  const ownerHandle = (ownerUsername || 'dybriansik').replace(/^@/, '').trim() || 'dybriansik';
   const supportHandle = (supportUsername || 'dybriansik').replace(/^@/, '').trim() || 'dybriansik';
 
   const handleAddToCart = () => {
@@ -57,25 +55,6 @@ export default function ProductModal({
       setAddedAnimation(false);
       onClose();
     }, 450);
-  };
-
-  const handleOrderDirect = () => {
-    haptic.medium();
-    const availabilityLabel = isPreOrder ? 'Под заказ из Китая' : 'В наличии';
-    const itemName = product.brand ? `${product.brand} — ${product.name}` : product.name;
-    const totalPrice = formatPrice(Number(product.price || 0) * quantity);
-
-    const orderText = [
-      'Здравствуйте! Хочу оформить заказ в SCREDTRES:',
-      `Товар: ${itemName}`,
-      `Наличие: ${availabilityLabel}`,
-      `Размер: ${selectedSize}`,
-      `Количество: ${quantity} шт.`,
-      `Сумма: ${totalPrice}`,
-      `Артикул/ID: ${product.id}`
-    ].join('\n');
-
-    openTelegramLink(`https://t.me/${ownerHandle}?text=${encodeURIComponent(orderText)}`);
   };
 
   return (
@@ -125,7 +104,7 @@ export default function ProductModal({
                   src={currentImg}
                   alt={product.name}
                   onError={() => setBrokenImages((prev) => ({ ...prev, [activeImageIndex]: true }))}
-                  className="w-full h-full object-cover grayscale contrast-125"
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center text-[#444444] gap-2">
@@ -150,7 +129,7 @@ export default function ProductModal({
                         : 'border-[#222222] opacity-40 hover:opacity-80'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover grayscale" />
+                    <img src={img} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -169,7 +148,7 @@ export default function ProductModal({
               {isPreOrder ? <Plane className="w-3.5 h-3.5" /> : <PackageCheck className="w-3.5 h-3.5" />}
               <span>
                 {isPreOrder
-                  ? `Под заказ из Китая · ${product.deliveryDays || '14–21 день'}`
+                  ? `Под заказ из Китая · ${product.deliveryDays || DEFAULT_DELIVERY_DAYS}`
                   : `В наличии · ${product.deliveryDays || 'отправка 1–3 дня'}`}
               </span>
             </span>
@@ -307,34 +286,30 @@ export default function ProductModal({
 
         </div>
 
-        {/* Bottom Rounded Actions */}
+        {/* Bottom Rounded Action: Add to Cart Only */}
         <div className="p-4 border-t border-[#141414] bg-black safe-pb">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              aria-label="В корзину"
-              className={`shrink-0 px-3.5 sm:px-4 py-3.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-colors border cursor-pointer flex items-center justify-center gap-1.5 ${
-                addedAnimation
-                  ? 'bg-white text-black border-white'
-                  : 'bg-[#080808] text-white border-[#2a2a2a] hover:border-white'
-              }`}
-            >
-              <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-              <span>{addedAnimation ? 'Добавлено' : 'В корзину'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleOrderDirect}
-              className="flex-1 min-w-0 py-3.5 px-4 rounded-full text-xs font-semibold tracking-wider uppercase transition-colors border cursor-pointer flex items-center justify-center gap-2 bg-white text-black border-white hover:bg-[#dddddd] shadow-md"
-            >
-              <Send className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                Заказать · {formatPrice(product.price * quantity)}
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            aria-label="Добавить в корзину"
+            className={`w-full py-3.5 px-5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all border cursor-pointer flex items-center justify-center gap-2 shadow-md ${
+              addedAnimation
+                ? 'bg-[#e5e5e5] text-black border-white'
+                : 'bg-white text-black border-white hover:bg-[#dddddd]'
+            }`}
+          >
+            {addedAnimation ? (
+              <>
+                <Check className="w-4 h-4 shrink-0" />
+                <span>Добавлено в корзину</span>
+              </>
+            ) : (
+              <>
+                <ShoppingBag className="w-4 h-4 shrink-0" />
+                <span>В корзину · {formatPrice(product.price * quantity)}</span>
+              </>
+            )}
+          </button>
         </div>
 
       </div>

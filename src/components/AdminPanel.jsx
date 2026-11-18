@@ -16,7 +16,14 @@ import {
   Tag,
   Copy
 } from 'lucide-react';
-import { CATEGORIES, ORDER_STATUSES, DEFAULT_SIZES } from '../data/products';
+import {
+  CATEGORIES,
+  ORDER_STATUSES,
+  DEFAULT_SIZES,
+  DEFAULT_DELIVERY_DAYS,
+  getDeliveryMethodLabel,
+  getPaymentMethodLabel
+} from '../data/products';
 import { compressImageFile, formatPrice } from '../utils/store';
 import { ROLES, canManageSettings } from '../utils/roles';
 import { haptic, openTelegramLink } from '../utils/telegram';
@@ -27,7 +34,7 @@ const EMPTY_PRODUCT_FORM = {
   brand: '',
   category: 'hoodies',
   availability: 'pre_order',
-  deliveryDays: '14–21 день',
+  deliveryDays: DEFAULT_DELIVERY_DAYS,
   price: '',
   oldPrice: '',
   sizes: ['S', 'M', 'L', 'XL'],
@@ -117,7 +124,7 @@ export default function AdminPanel({
       brand: p.brand || '',
       category: p.category || 'hoodies',
       availability: p.availability || 'pre_order',
-      deliveryDays: p.deliveryDays || (p.availability === 'in_stock' ? '1–3 дня' : '14–21 день'),
+      deliveryDays: p.deliveryDays || (p.availability === 'in_stock' ? '1–3 дня' : DEFAULT_DELIVERY_DAYS),
       price: String(p.price || ''),
       oldPrice: p.oldPrice ? String(p.oldPrice) : '',
       sizes: selectedDefaults,
@@ -143,10 +150,11 @@ export default function AdminPanel({
   const handleAvailabilityChange = (val) => {
     haptic.select();
     setEditingProduct((prev) => {
-      const autoDays = val === 'in_stock' ? '1–3 дня' : '14–21 день';
+      const autoDays = val === 'in_stock' ? '1–3 дня' : DEFAULT_DELIVERY_DAYS;
       const shouldUpdateDays =
         !prev.deliveryDays ||
         prev.deliveryDays === '1–3 дня' ||
+        prev.deliveryDays === DEFAULT_DELIVERY_DAYS ||
         prev.deliveryDays === '14–21 день';
       return {
         ...prev,
@@ -463,6 +471,9 @@ export default function AdminPanel({
               onClick={() => {
                 haptic.select();
                 setSection(tab.id);
+                if (tab.id === 'orders' && typeof onRefreshCatalog === 'function') {
+                  onRefreshCatalog();
+                }
               }}
               className={`px-4 py-2 rounded-full text-xs border flex items-center gap-2 shrink-0 transition-colors cursor-pointer ${
                 active
@@ -514,7 +525,7 @@ export default function AdminPanel({
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-12 h-14 rounded-lg bg-black border border-[#222222] overflow-hidden shrink-0 flex items-center justify-center">
                             {p.images?.[0] ? (
-                              <img src={p.images[0]} alt="" className="w-full h-full object-cover grayscale" />
+                              <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
                             ) : (
                               <Package className="w-4 h-4 text-[#444444]" />
                             )}
@@ -625,7 +636,7 @@ export default function AdminPanel({
                     type="text"
                     value={editingProduct.deliveryDays}
                     onChange={(e) => setEditingProduct({ ...editingProduct, deliveryDays: e.target.value })}
-                    placeholder="Напр. 14–21 день"
+                    placeholder="Напр. 7-15 дней"
                     className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
                   />
                 </div>
@@ -760,7 +771,7 @@ export default function AdminPanel({
                   <div className="flex gap-2 overflow-x-auto py-1">
                     {editingProduct.images.map((src, idx) => (
                       <div key={idx} className="relative w-16 h-20 rounded-lg overflow-hidden border border-[#2a2a2a] shrink-0">
-                        <img src={src} alt="" className="w-full h-full object-cover grayscale" />
+                        <img src={src} alt="" className="w-full h-full object-cover" />
                         <button
                           type="button"
                           onClick={() => handleRemoveImage(idx)}
@@ -993,8 +1004,21 @@ export default function AdminPanel({
                       </div>
                     )}
                     <div>
-                      Доставка: {order.delivery?.city}, {order.delivery?.address}
+                      Доставка:{' '}
+                      <span className="text-white">
+                        {getDeliveryMethodLabel(order.delivery?.method)}
+                      </span>{' '}
+                      — {order.delivery?.city}, {order.delivery?.address}
                     </div>
+                    <div>
+                      Оплата: <span className="text-white">{getPaymentMethodLabel(order.paymentMethod)}</span>
+                    </div>
+                    {order.pricing?.promoCode && (
+                      <div>
+                        Промокод: <span className="text-white font-mono">{order.pricing.promoCode}</span>
+                        {Number(order.pricing?.discount) > 0 && ` (-${formatPrice(order.pricing.discount)})`}
+                      </div>
+                    )}
                   </div>
 
                   {/* Items */}
@@ -1008,6 +1032,22 @@ export default function AdminPanel({
                       </div>
                     ))}
                   </div>
+
+                  {/* Order Comment */}
+                  {order.comment ? (
+                    <div className="p-3 bg-black border border-[#262626] rounded-xl space-y-1">
+                      <div className="text-[10px] uppercase tracking-wider text-[#777777]">
+                        Комментарий к заказу
+                      </div>
+                      <p className="text-xs text-white leading-relaxed whitespace-pre-line break-words select-text">
+                        {order.comment}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-[#555555]">
+                      Комментарий к заказу: не указан
+                    </div>
+                  )}
 
                   {/* Status & Tracking */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
@@ -1199,7 +1239,7 @@ export default function AdminPanel({
               </div>
               <div>
                 <label className="block text-[11px] text-[#777777] mb-1">
-                  Стоимость доставки по РФ (₽)
+                  Стоимость доставки СДЭК по РФ (₽)
                 </label>
                 <input
                   type="number"
