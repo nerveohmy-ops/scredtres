@@ -581,7 +581,7 @@ export default function App() {
               />
             </div>
 
-            <section className="max-w-6xl mx-auto px-4 py-6">
+            <section className="max-w-6xl mx-auto px-3 sm:px-4 py-5">
               {products.length === 0 ? (
                 <div className="max-w-md mx-auto my-8 p-6 sm:p-8 bg-[#080808] border border-[#181818] rounded-2xl text-center space-y-4">
                   <div className="w-12 h-12 mx-auto rounded-full bg-black border border-[#222222] flex items-center justify-center">
@@ -650,7 +650,7 @@ export default function App() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
                   {filteredProducts.map((product) => (
                     <ProductCard
                       key={product.id}

@@ -71,7 +71,7 @@ export default function FavoritesView({
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
           {favoriteProducts.map((product) => (
             <div
               key={product.id}
@@ -79,9 +79,9 @@ export default function FavoritesView({
                 haptic.light();
                 onSelectProduct(product);
               }}
-              className="group flex flex-col rounded-2xl bg-[#090909] border border-[#1b1b1b] hover:border-[#383838] overflow-hidden transition-all duration-300 cursor-pointer"
+              className="group flex flex-col rounded-2xl bg-[#090909] border border-[#1a1a1c] hover:border-[#38383d] overflow-hidden transition-all duration-300 cursor-pointer"
             >
-              <div className="relative aspect-[4/5] bg-[radial-gradient(circle_at_50%_45%,#242428_0%,#121214_70%,#0a0a0c_100%)] overflow-hidden">
+              <div className="relative aspect-square bg-[radial-gradient(circle_at_50%_45%,#242428_0%,#121214_72%,#09090b_100%)] overflow-hidden">
                 <FavoriteProductImage src={product.images?.[0]} alt={product.name} />
                 <button
                   type="button"
@@ -91,26 +91,19 @@ export default function FavoritesView({
                     onToggleFavorite(product.id);
                   }}
                   aria-label="Удалить из избранного"
-                  className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-black/65 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white transition-colors cursor-pointer"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="p-3 sm:p-3.5 flex-1 flex flex-col justify-between gap-2.5">
-                <div className="space-y-1">
-                  {product.brand && (
-                    <div className="text-[10px] uppercase tracking-[0.12em] text-[#777777] truncate">
-                      {product.brand}
-                    </div>
-                  )}
-                  <h4 className="text-[13px] sm:text-sm font-medium text-white leading-snug line-clamp-2 min-h-[2.6em]">
-                    {product.name}
-                  </h4>
-                </div>
+              <div className="p-2.5 sm:p-3 flex-1 flex flex-col justify-between gap-2">
+                <h4 className="text-xs sm:text-[13px] font-medium text-white leading-[1.3] line-clamp-2 min-h-[2.6em]">
+                  {product.name}
+                </h4>
 
-                <div className="space-y-2 pt-1 border-t border-[#151515]">
-                  <span className="text-sm font-bold text-white block">
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <span className="text-[13px] sm:text-sm font-bold text-white">
                     {formatPrice(product.price)}
                   </span>
                   <button
@@ -120,10 +113,10 @@ export default function FavoritesView({
                       haptic.medium();
                       onAddToCart(product, product.sizes?.[0] || 'ONE SIZE', 1);
                     }}
-                    className="w-full py-2 px-3 rounded-xl bg-[#131313] border border-[#262626] hover:bg-white hover:text-black hover:border-white text-[11px] font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 text-white transition-all cursor-pointer"
+                    aria-label="Добавить в корзину"
+                    className="w-8 h-8 rounded-full bg-[#141416] border border-[#2a2a2e] hover:bg-white hover:text-black hover:border-white flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
                   >
                     <ShoppingBag className="w-3.5 h-3.5" />
-                    <span>В корзину</span>
                   </button>
                 </div>
               </div>
