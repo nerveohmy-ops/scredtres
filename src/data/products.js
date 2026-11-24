@@ -29,7 +29,8 @@ export const ORDER_STATUSES = [
 export const DEFAULT_DELIVERY_DAYS = '7-15 дней';
 
 export const DELIVERY_METHODS = [
-  { id: 'cdek_pvz', label: 'СДЭК ПВЗ', description: 'Пункт выдачи по РФ и СНГ' }
+  { id: 'cdek_pvz', label: 'СДЭК ПВЗ', description: 'По РФ и СНГ' },
+  { id: 'pickup_blg', label: 'Благовещенск', description: 'Забрать лично · без данных' }
 ];
 
 export const PAYMENT_METHODS = [
@@ -42,6 +43,8 @@ export const getDeliveryMethodLabel = (method) => {
   switch (method) {
     case 'cdek_pvz':
       return 'СДЭК ПВЗ';
+    case 'pickup_blg':
+      return 'Благовещенск (забрать лично)';
     case 'cdek_courier':
       return 'Курьер';
     case 'post_ru':

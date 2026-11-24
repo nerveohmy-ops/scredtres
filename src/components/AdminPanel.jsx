@@ -984,7 +984,11 @@ export default function AdminPanel({
                   {/* Customer Info */}
                   <div className="space-y-1 text-[#999999]">
                     <div>
-                      Получатель: <span className="text-white">{order.customer?.fullName}</span> ({order.customer?.phone})
+                      Получатель:{' '}
+                      <span className="text-white">
+                        {order.customer?.fullName || 'Покупатель'}
+                      </span>
+                      {order.customer?.phone ? ` (${order.customer.phone})` : ''}
                     </div>
                     {order.customer?.telegramUsername && (
                       <div className="flex items-center gap-2">
@@ -1007,11 +1011,17 @@ export default function AdminPanel({
                       Доставка:{' '}
                       <span className="text-white">
                         {getDeliveryMethodLabel(order.delivery?.method)}
-                      </span>{' '}
-                      — {order.delivery?.city}, {order.delivery?.address}
+                      </span>
+                      {order.delivery?.method !== 'pickup_blg' &&
+                        ` — ${order.delivery?.city}, ${order.delivery?.address}`}
                     </div>
                     <div>
-                      Оплата: <span className="text-white">{getPaymentMethodLabel(order.paymentMethod)}</span>
+                      Оплата:{' '}
+                      <span className="text-white">
+                        {order.delivery?.method === 'pickup_blg'
+                          ? 'Обговор с владельцем (@dybriansik)'
+                          : getPaymentMethodLabel(order.paymentMethod)}
+                      </span>
                     </div>
                     {order.pricing?.promoCode && (
                       <div>

@@ -274,6 +274,11 @@ export default function CartDrawer({
                 <span>Доставка СДЭК:</span>
                 <span>{shippingCost === 0 ? 'Бесплатно' : formatPrice(shippingCost)}</span>
               </div>
+              {shippingCost > 0 && (
+                <div className="text-[10px] text-[#666666]">
+                  Самовывоз в Благовещенске — 0 ₽ (выбирается при оформлении)
+                </div>
+              )}
               <div className="flex justify-between pt-2 border-t border-[#141414] text-sm text-white font-semibold">
                 <span>Итого к оплате:</span>
                 <span>{formatPrice(total)}</span>

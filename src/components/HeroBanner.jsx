@@ -5,39 +5,40 @@ import { haptic } from '../utils/telegram';
 
 export default function HeroBanner({ onExploreCatalog }) {
   return (
-    <section className="relative overflow-hidden border-b border-[#141414] bg-black pt-10 pb-14 sm:pt-16 sm:pb-20">
-      <div className="max-w-4xl mx-auto px-4 text-center flex flex-col items-center">
-        
-        {/* Core Iconic Artwork */}
-        <div className="relative mb-6 group cursor-pointer" onClick={onExploreCatalog}>
-          <div className="w-40 h-40 sm:w-52 sm:h-52 overflow-hidden bg-black border border-[#222222] p-1.5 rounded-2xl transition-all duration-700 group-hover:border-white">
-            <img 
-              src={logoImg} 
-              alt="SCREDTRES" 
-              className="w-full h-full object-cover grayscale contrast-150 brightness-95 rounded-xl group-hover:scale-105 transition-transform duration-700" 
-            />
-          </div>
-        </div>
+    <section className="relative overflow-hidden border-b border-[#141414] bg-black min-h-[220px] sm:min-h-[290px] flex items-center justify-center">
+      {/* Subtle full-bleed SCRED logo background watermark */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none select-none absolute inset-0 flex items-center justify-center overflow-hidden"
+      >
+        <img
+          src={logoImg}
+          alt=""
+          className="w-[320px] sm:w-[440px] max-w-none h-auto object-contain grayscale contrast-125 opacity-25 scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-black/85" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'radial-gradient(circle at center, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.85) 75%, #000000 100%)'
+          }}
+        />
+      </div>
 
-        {/* Brand Title */}
-        <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white font-cinzel leading-none uppercase">
-          SCREDTRES
-        </h1>
-
-        {/* Catalog Button Only */}
-        <div className="pt-8 flex items-center justify-center">
-          <button
-            onClick={() => {
-              haptic.medium();
-              onExploreCatalog();
-            }}
-            className="px-7 py-3 rounded-full bg-white text-black text-xs font-semibold tracking-wider uppercase hover:bg-[#e0e0e0] transition-colors flex items-center gap-2 cursor-pointer shadow-md"
-          >
-            <span>В каталог</span>
-            <ArrowDown className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
+      {/* Catalog Button Only */}
+      <div className="relative z-10 max-w-4xl mx-auto px-4 py-12 sm:py-16 text-center flex flex-col items-center justify-center">
+        <button
+          type="button"
+          onClick={() => {
+            haptic.medium();
+            onExploreCatalog();
+          }}
+          className="px-8 py-3.5 rounded-full bg-white text-black text-xs font-semibold tracking-wider uppercase hover:bg-[#e0e0e0] transition-colors flex items-center gap-2 cursor-pointer shadow-[0_8px_32px_rgba(0,0,0,0.9)]"
+        >
+          <span>В каталог</span>
+          <ArrowDown className="w-3.5 h-3.5" />
+        </button>
       </div>
     </section>
   );

@@ -142,20 +142,36 @@ export default async function handler(req, res) {
     const serverTimestamp = new Date().toISOString();
     const targetChatId = hasVerifiedUser ? verifiedUserId : null;
 
+    const verifiedDisplayName = hasVerifiedUser
+      ? [verifiedUser?.first_name, verifiedUser?.last_name].filter(Boolean).join(' ').trim()
+      : '';
+    const verifiedHandle = hasVerifiedUser && verifiedUser?.username ? `@${verifiedUser.username}` : '';
+    const isPickupBlg = deliveryMethod === 'pickup_blg';
+
+    const rawFullName = String(orderData.customer?.fullName || '').trim().slice(0, 120);
+    const rawTgUsername = String(orderData.customer?.telegramUsername || '').trim().slice(0, 64);
+
     const sanitizedCustomer = {
-      fullName: String(orderData.customer?.fullName || '').trim().slice(0, 120),
-      phone: String(orderData.customer?.phone || '').trim().slice(0, 32),
-      telegramUsername: String(orderData.customer?.telegramUsername || '').trim().slice(0, 64),
+      fullName: rawFullName || verifiedDisplayName || (isPickupBlg ? 'Самовывоз (Благовещенск)' : ''),
+      phone: isPickupBlg ? '' : String(orderData.customer?.phone || '').trim().slice(0, 32),
+      telegramUsername: rawTgUsername || verifiedHandle,
       telegramId: hasVerifiedUser ? verifiedUserId : (Number(orderData.customer?.telegramId) || 0)
     };
 
-    const sanitizedDelivery = {
-      method: deliveryMethod,
-      city: String(orderData.delivery?.city || '').trim().slice(0, 100),
-      address: String(orderData.delivery?.address || '').trim().slice(0, 300)
-    };
+    const sanitizedDelivery = isPickupBlg
+      ? {
+          method: 'pickup_blg',
+          city: 'Благовещенск',
+          address: 'Забрать лично (обговор с владельцем)'
+        }
+      : {
+          method: deliveryMethod,
+          city: String(orderData.delivery?.city || '').trim().slice(0, 100),
+          address: String(orderData.delivery?.address || '').trim().slice(0, 300)
+        };
 
     const sanitizedComment = String(orderData.comment || '').trim().slice(0, 1000);
+    const resolvedPaymentMethod = isPickupBlg ? 'manager' : paymentMethod;
 
     let finalOrder = {
       orderId: serverOrderId,
@@ -164,13 +180,13 @@ export default async function handler(req, res) {
       trackingNumber: '',
       customer: sanitizedCustomer,
       delivery: sanitizedDelivery,
-      paymentMethod,
+      paymentMethod: resolvedPaymentMethod,
       comment: sanitizedComment,
       items: normalizedInputItems,
       pricing: {
         subtotal: Math.max(0, Math.round(Number(orderData.pricing?.subtotal) || 0)),
         discount: Math.max(0, Math.round(Number(orderData.pricing?.discount) || 0)),
-        shipping: Math.max(0, Math.round(Number(orderData.pricing?.shipping) || 0)),
+        shipping: isPickupBlg ? 0 : Math.max(0, Math.round(Number(orderData.pricing?.shipping) || 0)),
         total: Math.max(0, Math.round(Number(orderData.pricing?.total) || 0)),
         promoCode: null
       }
@@ -239,7 +255,7 @@ export default async function handler(req, res) {
 
       const freeThreshold = Number(settings.freeShippingThreshold ?? 15000);
       const stdShipping = Number(settings.standardShippingCost ?? 490);
-      const shipping = subtotal >= freeThreshold ? 0 : stdShipping;
+      const shipping = isPickupBlg || subtotal >= freeThreshold ? 0 : stdShipping;
       const total = Math.max(0, subtotal - discount + shipping);
 
       finalOrder = {
@@ -267,7 +283,16 @@ export default async function handler(req, res) {
     const deliveryLabel =
       DELIVERY_METHOD_LABELS[finalOrder.delivery?.method] || 'СДЭК ПВЗ';
     const paymentLabel =
-      PAYMENT_METHOD_LABELS[finalOrder.paymentMethod] || 'СБП / Карта РФ';
+      finalOrder.delivery?.method === 'pickup_blg'
+        ? 'Обговор с владельцем (@dybriansik)'
+        : PAYMENT_METHOD_LABELS[finalOrder.paymentMethod] || 'СБП / Карта РФ';
+    const deliveryText =
+      finalOrder.delivery?.method === 'pickup_blg'
+        ? deliveryLabel
+        : `${deliveryLabel} — ${finalOrder.delivery?.city}, ${finalOrder.delivery?.address}`;
+    const phoneSuffix = finalOrder.customer?.phone
+      ? ` (${escapeHtml(finalOrder.customer.phone)})`
+      : '';
 
     const buyerMessage = [
       `<b>SCREDTRES — Заказ принят: ${escapeHtml(finalOrder.orderId)}</b>`,
@@ -276,7 +301,7 @@ export default async function handler(req, res) {
       '',
       `Итого: <b>${escapeHtml(finalOrder.pricing?.total ?? 0)} ₽</b>`,
       `Оплата: ${escapeHtml(paymentLabel)}`,
-      `Доставка: ${escapeHtml(deliveryLabel)} — ${escapeHtml(finalOrder.delivery?.city)}, ${escapeHtml(finalOrder.delivery?.address)}`,
+      `Доставка: ${escapeHtml(deliveryText)}`,
       finalOrder.comment ? `Комментарий: ${escapeHtml(finalOrder.comment)}` : null,
       '',
       `Связь с владельцем по выкупу и трек-номеру: @${escapeHtml(supportHandle)}`
@@ -286,7 +311,7 @@ export default async function handler(req, res) {
 
     const adminMessage = [
       `<b>Новый заказ ${escapeHtml(finalOrder.orderId)}</b>`,
-      `Клиент: ${escapeHtml(finalOrder.customer?.fullName)} (${escapeHtml(finalOrder.customer?.phone)})`,
+      `Клиент: ${escapeHtml(finalOrder.customer?.fullName || 'Покупатель')}${phoneSuffix}`,
       finalOrder.customer?.telegramUsername
         ? `Telegram: ${escapeHtml(finalOrder.customer.telegramUsername)}`
         : null,
@@ -296,7 +321,7 @@ export default async function handler(req, res) {
       '',
       `Сумма: <b>${escapeHtml(finalOrder.pricing?.total ?? 0)} ₽</b>`,
       `Оплата: ${escapeHtml(paymentLabel)}`,
-      `Доставка: ${escapeHtml(deliveryLabel)} — ${escapeHtml(finalOrder.delivery?.city)}, ${escapeHtml(finalOrder.delivery?.address)}`,
+      `Доставка: ${escapeHtml(deliveryText)}`,
       finalOrder.comment ? `Комментарий: ${escapeHtml(finalOrder.comment)}` : null
     ]
       .filter((line) => line !== null)

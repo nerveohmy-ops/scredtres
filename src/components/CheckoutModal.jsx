@@ -3,12 +3,13 @@ import { X, Check, AlertCircle } from 'lucide-react';
 import { getTelegramUser, submitOrderToServer, openTelegramLink, haptic } from '../utils/telegram';
 import { formatPrice } from '../utils/store';
 import {
+  DELIVERY_METHODS,
   PAYMENT_METHODS,
   getDeliveryMethodLabel,
   getPaymentMethodLabel
 } from '../data/products';
 
-const DELIVERY_METHOD = 'cdek_pvz';
+const OWNER_HANDLE = 'dybriansik';
 
 export default function CheckoutModal({ 
   isOpen, 
@@ -29,6 +30,7 @@ export default function CheckoutModal({
   const [telegramUsername, setTelegramUsername] = useState(
     tgUser.username ? `@${tgUser.username}` : ''
   );
+  const [deliveryMethod, setDeliveryMethod] = useState('cdek_pvz');
   const [city, setCity] = useState('Москва');
   const [address, setAddress] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('sbp_card');
@@ -49,33 +51,44 @@ export default function CheckoutModal({
   const hasPreOrderItems = orderSummary.items.some(
     (i) => i.product.availability === 'pre_order'
   );
+  const isPickupBlg = deliveryMethod === 'pickup_blg';
+  const effectiveShipping = isPickupBlg ? 0 : Number(orderSummary.shippingCost) || 0;
+  const effectiveTotal = Math.max(
+    0,
+    (Number(orderSummary.subtotal) || 0) -
+      (Number(orderSummary.discountAmount) || 0) +
+      effectiveShipping
+  );
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
     setFormError('');
 
+    const tgFullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim();
     const cleanName = fullName.trim();
     const phoneDigits = phone.replace(/\D/g, '');
     const cleanCity = city.trim();
     const cleanAddress = address.trim();
 
-    if (!cleanName || cleanName.length < 2) {
-      setFormError('Укажите корректные имя и фамилию получателя.');
-      haptic.error();
-      return;
-    }
+    if (!isPickupBlg) {
+      if (!cleanName || cleanName.length < 2) {
+        setFormError('Укажите корректные имя и фамилию получателя.');
+        haptic.error();
+        return;
+      }
 
-    if (phoneDigits.length < 10) {
-      setFormError('Введите корректный номер телефона (минимум 10 цифр).');
-      haptic.error();
-      return;
-    }
+      if (phoneDigits.length < 10) {
+        setFormError('Введите корректный номер телефона (минимум 10 цифр).');
+        haptic.error();
+        return;
+      }
 
-    if (!cleanCity || !cleanAddress) {
-      setFormError('Укажите город и адрес доставки.');
-      haptic.error();
-      return;
+      if (!cleanCity || !cleanAddress) {
+        setFormError('Укажите город и адрес ПВЗ СДЭК.');
+        haptic.error();
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -89,18 +102,31 @@ export default function CheckoutModal({
       timestamp,
       status: 'new',
       trackingNumber: '',
-      customer: {
-        fullName: cleanName,
-        phone: phone.trim(),
-        telegramUsername: telegramUsername.trim(),
-        telegramId: tgUser.id
-      },
-      delivery: {
-        method: DELIVERY_METHOD,
-        city: cleanCity,
-        address: cleanAddress
-      },
-      paymentMethod,
+      customer: isPickupBlg
+        ? {
+            fullName: tgFullName || 'Самовывоз (Благовещенск)',
+            phone: '',
+            telegramUsername: tgUser.username ? `@${tgUser.username}` : '',
+            telegramId: tgUser.id
+          }
+        : {
+            fullName: cleanName,
+            phone: phone.trim(),
+            telegramUsername: telegramUsername.trim(),
+            telegramId: tgUser.id
+          },
+      delivery: isPickupBlg
+        ? {
+            method: 'pickup_blg',
+            city: 'Благовещенск',
+            address: 'Забрать лично (обговор с владельцем)'
+          }
+        : {
+            method: 'cdek_pvz',
+            city: cleanCity,
+            address: cleanAddress
+          },
+      paymentMethod: isPickupBlg ? 'manager' : paymentMethod,
       comment: comment.trim(),
       items: orderSummary.items.map((i) => ({
         id: i.product.id,
@@ -113,8 +139,8 @@ export default function CheckoutModal({
       pricing: {
         subtotal: orderSummary.subtotal,
         discount: orderSummary.discountAmount,
-        shipping: orderSummary.shippingCost,
-        total: orderSummary.total,
+        shipping: effectiveShipping,
+        total: effectiveTotal,
         promoCode: orderSummary.appliedPromo?.code || null
       }
     };
@@ -177,7 +203,9 @@ export default function CheckoutModal({
               </div>
 
               <p className="text-xs text-[#888888] max-w-sm mx-auto leading-relaxed">
-                {hasPreOrderItems
+                {orderComplete.delivery?.method === 'pickup_blg'
+                  ? `Самовывоз в Благовещенске. Напишите владельцу (@${OWNER_HANDLE}) в Telegram, чтобы договориться о встрече и оплате.`
+                  : hasPreOrderItems
                   ? `В заказе есть позиции под заказ (7-15 дней). Заказ передан в панель магазина — поддержка (@${supportHandle}) свяжется с вами для подтверждения.`
                   : `Заказ передан в панель магазина. Поддержка (@${supportHandle}) свяжется с вами в Telegram для подтверждения и отправки трек-номера СДЭК.`}
               </p>
@@ -202,13 +230,16 @@ export default function CheckoutModal({
                     Доставка:{' '}
                     <span className="text-white">
                       {getDeliveryMethodLabel(orderComplete.delivery?.method)}
-                    </span>{' '}
-                    — {orderComplete.delivery?.city}, {orderComplete.delivery?.address}
+                    </span>
+                    {orderComplete.delivery?.method !== 'pickup_blg' &&
+                      ` — ${orderComplete.delivery?.city}, ${orderComplete.delivery?.address}`}
                   </div>
                   <div>
                     Оплата:{' '}
                     <span className="text-white">
-                      {getPaymentMethodLabel(orderComplete.paymentMethod)}
+                      {orderComplete.delivery?.method === 'pickup_blg'
+                        ? `Обговор с владельцем (@${OWNER_HANDLE})`
+                        : getPaymentMethodLabel(orderComplete.paymentMethod)}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs pt-1">
@@ -236,11 +267,17 @@ export default function CheckoutModal({
                   type="button"
                   onClick={() => {
                     haptic.light();
-                    openTelegramLink(`https://t.me/${supportHandle}`);
+                    const contactHandle =
+                      orderComplete.delivery?.method === 'pickup_blg'
+                        ? OWNER_HANDLE
+                        : supportHandle;
+                    openTelegramLink(`https://t.me/${contactHandle}`);
                   }}
                   className="w-full py-3 rounded-full border border-[#333333] hover:border-white text-white text-xs font-medium tracking-wider uppercase transition-colors cursor-pointer"
                 >
-                  Написать поддержке @{supportHandle}
+                  {orderComplete.delivery?.method === 'pickup_blg'
+                    ? `Написать владельцу @${OWNER_HANDLE}`
+                    : `Написать поддержке @${supportHandle}`}
                 </button>
 
                 <button
@@ -265,130 +302,171 @@ export default function CheckoutModal({
                 </div>
               )}
 
-              {/* Recipient */}
+              {/* Delivery / Pickup method */}
               <div className="space-y-3">
                 <span className="text-[#888888] uppercase tracking-wider block font-medium">
-                  Получатель
+                  Способ получения
                 </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-[#666666] mb-1">Имя и фамилия *</label>
-                    <input
-                      type="text"
-                      required
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="Иван Иванов"
-                      className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] text-[#666666] mb-1">Телефон *</label>
-                    <input
-                      type="tel"
-                      required
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+7 999 000-00-00"
-                      className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-[#666666] mb-1">Telegram логин</label>
-                  <input
-                    type="text"
-                    value={telegramUsername}
-                    onChange={(e) => setTelegramUsername(e.target.value)}
-                    placeholder="@username"
-                    className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  {DELIVERY_METHODS.map((dm) => {
+                    const active = deliveryMethod === dm.id;
+                    return (
+                      <button
+                        key={dm.id}
+                        type="button"
+                        onClick={() => {
+                          haptic.select();
+                          setDeliveryMethod(dm.id);
+                          setFormError('');
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
+                          active
+                            ? 'border-white bg-[#141414] text-white'
+                            : 'border-[#222222] text-[#777777] hover:border-[#444444]'
+                        }`}
+                      >
+                        <div className="font-medium text-xs text-white">{dm.label}</div>
+                        <div className="text-[10px] text-[#777777] mt-0.5">{dm.description}</div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Delivery method (СДЭК only) */}
-              <div className="space-y-3 pt-2 border-t border-[#141414]">
-                <span className="text-[#888888] uppercase tracking-wider block font-medium">
-                  Доставка
-                </span>
-
-                <div className="p-3 rounded-xl border border-white/25 bg-[#111111] flex items-center justify-between gap-2">
-                  <div>
-                    <div className="font-medium text-xs text-white">СДЭК · Пункт выдачи (ПВЗ)</div>
-                    <div className="text-[10px] text-[#888888] mt-0.5">По РФ и СНГ</div>
+              {isPickupBlg ? (
+                <div className="p-4 rounded-2xl bg-black border border-[#242424] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-white">Самовывоз · Благовещенск</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-white text-black text-[10px] font-semibold">
+                      Доставка 0 ₽
+                    </span>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full bg-white text-black text-[10px] font-semibold uppercase tracking-wider shrink-0">
-                    СДЭК
-                  </span>
+                  <p className="text-[11px] text-[#999999] leading-relaxed">
+                    Никаких данных вводить не нужно. Вы можете сразу подтвердить заказ — время, место встречи и оплата обсуждаются лично с владельцем{' '}
+                    <span className="text-white">@{OWNER_HANDLE}</span>.
+                  </p>
                 </div>
+              ) : (
+                <>
+                  {/* Recipient */}
+                  <div className="space-y-3 pt-2 border-t border-[#141414]">
+                    <span className="text-[#888888] uppercase tracking-wider block font-medium">
+                      Получатель
+                    </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-[#666666] mb-1">Город *</label>
-                    <input
-                      type="text"
-                      required
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Москва"
-                      className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-[#666666] mb-1">Имя и фамилия *</label>
+                        <input
+                          type="text"
+                          required
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="Иван Иванов"
+                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] text-[#666666] mb-1">Телефон *</label>
+                        <input
+                          type="tel"
+                          required
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="+7 999 000-00-00"
+                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] text-[#666666] mb-1">Telegram логин</label>
+                      <input
+                        type="text"
+                        value={telegramUsername}
+                        onChange={(e) => setTelegramUsername(e.target.value)}
+                        placeholder="@username"
+                        className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                      />
+                    </div>
                   </div>
 
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] text-[#666666] mb-1">
-                      Адрес ПВЗ СДЭК *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="ул. Тверская, 12"
-                      className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                    />
+                  {/* СДЭК address */}
+                  <div className="space-y-3 pt-2 border-t border-[#141414]">
+                    <span className="text-[#888888] uppercase tracking-wider block font-medium">
+                      Адрес СДЭК
+                    </span>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] text-[#666666] mb-1">Город *</label>
+                        <input
+                          type="text"
+                          required
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          placeholder="Москва"
+                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] text-[#666666] mb-1">
+                          Адрес ПВЗ СДЭК *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          placeholder="ул. Тверская, 12"
+                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Payment choice (without Telegram Stars) */}
-              <div className="space-y-3 pt-2 border-t border-[#141414]">
-                <span className="text-[#888888] uppercase tracking-wider block font-medium">
-                  Оплата
-                </span>
+                  {/* Payment choice (without Telegram Stars) */}
+                  <div className="space-y-3 pt-2 border-t border-[#141414]">
+                    <span className="text-[#888888] uppercase tracking-wider block font-medium">
+                      Оплата
+                    </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {PAYMENT_METHODS.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        haptic.select();
-                        setPaymentMethod(p.id);
-                      }}
-                      className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
-                        paymentMethod === p.id
-                          ? 'border-white bg-[#141414] text-white font-medium'
-                          : 'border-[#222222] text-[#666666] hover:border-[#444444]'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {PAYMENT_METHODS.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            haptic.select();
+                            setPaymentMethod(p.id);
+                          }}
+                          className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
+                            paymentMethod === p.id
+                              ? 'border-white bg-[#141414] text-white font-medium'
+                              : 'border-[#222222] text-[#666666] hover:border-[#444444]'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Comment */}
               <div>
-                <label className="block text-[11px] text-[#666666] mb-1">Комментарий к заказу</label>
+                <label className="block text-[11px] text-[#666666] mb-1">
+                  Комментарий к заказу (опционально)
+                </label>
                 <textarea
                   rows={2}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Пожелания по выкупу, размерам или доставке..."
+                  placeholder="Пожелания по выкупу, размерам или встрече..."
                   className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none resize-none"
                 />
               </div>
@@ -399,7 +477,7 @@ export default function CheckoutModal({
                 disabled={isSubmitting}
                 className="w-full py-3.5 rounded-full bg-white text-black hover:bg-[#dddddd] text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer disabled:opacity-50 shadow-md"
               >
-                {isSubmitting ? 'Оформление...' : `Подтвердить заказ · ${formatPrice(orderSummary.total)}`}
+                {isSubmitting ? 'Оформление...' : `Подтвердить заказ · ${formatPrice(effectiveTotal)}`}
               </button>
 
             </form>

@@ -122,12 +122,14 @@ export default function ProfileView({
 
                 {(order.delivery?.city || order.delivery?.address || order.paymentMethod) && (
                   <div className="text-[11px] text-[#777777] space-y-0.5 pt-1">
-                    {(order.delivery?.city || order.delivery?.address) && (
+                    {(order.delivery?.method || order.delivery?.city || order.delivery?.address) && (
                       <div>
                         Доставка:{' '}
                         <span className="text-[#cccccc]">
-                          {getDeliveryMethodLabel(order.delivery?.method)} — {order.delivery?.city},{' '}
-                          {order.delivery?.address}
+                          {getDeliveryMethodLabel(order.delivery?.method)}
+                          {order.delivery?.method !== 'pickup_blg' &&
+                            (order.delivery?.city || order.delivery?.address) &&
+                            ` — ${order.delivery?.city}, ${order.delivery?.address}`}
                         </span>
                       </div>
                     )}
@@ -135,7 +137,9 @@ export default function ProfileView({
                       <div>
                         Оплата:{' '}
                         <span className="text-[#cccccc]">
-                          {getPaymentMethodLabel(order.paymentMethod)}
+                          {order.delivery?.method === 'pickup_blg'
+                            ? 'Обговор с владельцем (@dybriansik)'
+                            : getPaymentMethodLabel(order.paymentMethod)}
                         </span>
                       </div>
                     )}
