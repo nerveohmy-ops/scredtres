@@ -2220,7 +2220,7 @@ export const SEED_PRODUCTS = [
   },
   {
     "id": "tg-981",
-    "name": "Danya Dybriansik",
+    "name": "LETTER FROM DARKNESS",
     "brand": "",
     "category": "hoodies",
     "availability": "pre_order",
