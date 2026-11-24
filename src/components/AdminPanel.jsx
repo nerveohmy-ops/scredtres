@@ -14,7 +14,8 @@ import {
   ExternalLink,
   RefreshCw,
   Tag,
-  Copy
+  Copy,
+  Search
 } from 'lucide-react';
 import {
   CATEGORIES,
@@ -102,8 +103,12 @@ export default function AdminPanel({
     setSupportUserInput(settings.supportUsername || 'dybriansik');
   }, [settings.freeShippingThreshold, settings.standardShippingCost, settings.supportUsername]);
 
-  // Tracking input cache per order
+  // Tracking input cache & order filters
   const [trackingDrafts, setTrackingDrafts] = useState({});
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [copiedTgId, setCopiedTgId] = useState('');
+  const [savedTrackingId, setSavedTrackingId] = useState('');
 
   const openNewProductForm = () => {
     haptic.light();
@@ -940,170 +945,327 @@ export default function AdminPanel({
       )}
 
       {/* ==================== SECTION: ORDERS ==================== */}
-      {section === 'orders' && (
-        <div className="space-y-3">
-          {orders.length === 0 ? (
-            <div className="p-8 text-center border border-[#161616] rounded-2xl text-xs text-[#777777]">
-              Пока нет оформленных заказов.
-            </div>
-          ) : (
-            orders.map((order) => {
-              const draftTrack =
-                trackingDrafts[order.orderId] !== undefined
-                  ? trackingDrafts[order.orderId]
-                  : order.trackingNumber || '';
+      {section === 'orders' && (() => {
+        const query = orderSearchQuery.trim().toLowerCase();
+        const statusCounts = orders.reduce((acc, o) => {
+          const st = o.status || 'new';
+          acc[st] = (acc[st] || 0) + 1;
+          return acc;
+        }, {});
 
-              return (
-                <div key={order.orderId} className="p-4 bg-[#080808] border border-[#1a1a1a] rounded-xl space-y-3 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#141414] pb-2">
-                    <div>
-                      <span className="font-semibold text-white">{order.orderId}</span>
-                      <span className="text-[#666666] ml-2 text-[11px]">
-                        {new Date(order.timestamp).toLocaleString('ru-RU')}
-                      </span>
-                    </div>
+        const filteredOrders = orders.filter((order) => {
+          const st = order.status || 'new';
+          if (orderStatusFilter !== 'all' && st !== orderStatusFilter) return false;
+          if (!query) return true;
+          const itemsHay = (order.items || []).map((it) => it.name || '').join(' ');
+          const hay = [
+            order.orderId,
+            order.customer?.fullName,
+            order.customer?.phone,
+            order.customer?.telegramUsername,
+            order.customer?.telegramId,
+            order.delivery?.city,
+            order.delivery?.address,
+            order.trackingNumber,
+            order.comment,
+            itemsHay
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return hay.includes(query);
+        });
 
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">
-                        {formatPrice(order.pricing?.total)}
-                      </span>
-                      {isOwner && (
-                        <button
-                          onClick={() => {
-                            haptic.medium();
-                            onDeleteOrder(order.orderId);
-                          }}
-                          className="w-7 h-7 rounded-full border border-[#222222] hover:border-white flex items-center justify-center text-[#777777] hover:text-white cursor-pointer"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+        const handleCopyTgId = async (tgId) => {
+          haptic.light();
+          const str = String(tgId);
+          try {
+            await navigator.clipboard?.writeText(str);
+            setCopiedTgId(str);
+            setTimeout(() => {
+              setCopiedTgId((curr) => (curr === str ? '' : curr));
+            }, 1500);
+          } catch {}
+        };
 
-                  {/* Customer Info */}
-                  <div className="space-y-1 text-[#999999]">
-                    <div>
-                      Получатель:{' '}
-                      <span className="text-white">
-                        {order.customer?.fullName || 'Покупатель'}
-                      </span>
-                      {order.customer?.phone ? ` (${order.customer.phone})` : ''}
-                    </div>
-                    {order.customer?.telegramUsername && (
-                      <div className="flex items-center gap-2">
-                        <span>Telegram:</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openTelegramLink(
-                              `https://t.me/${order.customer.telegramUsername.replace(/^@/, '')}`
-                            )
-                          }
-                          className="text-white underline underline-offset-4 inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>{order.customer.telegramUsername}</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-                    <div>
-                      Доставка:{' '}
-                      <span className="text-white">
-                        {getDeliveryMethodLabel(order.delivery?.method)}
-                      </span>
-                      {order.delivery?.method !== 'pickup_blg' &&
-                        ` — ${order.delivery?.city}, ${order.delivery?.address}`}
-                    </div>
-                    <div>
-                      Оплата:{' '}
-                      <span className="text-white">
-                        {order.delivery?.method === 'pickup_blg'
-                          ? 'Обговор с владельцем (@dybriansik)'
-                          : getPaymentMethodLabel(order.paymentMethod)}
-                      </span>
-                    </div>
-                    {order.pricing?.promoCode && (
-                      <div>
-                        Промокод: <span className="text-white font-mono">{order.pricing.promoCode}</span>
-                        {Number(order.pricing?.discount) > 0 && ` (-${formatPrice(order.pricing.discount)})`}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Items */}
-                  <div className="p-2.5 bg-black border border-[#141414] rounded-lg space-y-1">
-                    {(order.items || []).map((it, idx) => (
-                      <div key={idx} className="flex justify-between text-[11px]">
-                        <span className="text-[#cccccc]">
-                          {it.name} ({it.size}) × {it.quantity}
-                        </span>
-                        <span className="text-white">{formatPrice(it.price * it.quantity)}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Order Comment */}
-                  {order.comment ? (
-                    <div className="p-3 bg-black border border-[#262626] rounded-xl space-y-1">
-                      <div className="text-[10px] uppercase tracking-wider text-[#777777]">
-                        Комментарий к заказу
-                      </div>
-                      <p className="text-xs text-white leading-relaxed whitespace-pre-line break-words select-text">
-                        {order.comment}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="text-[11px] text-[#555555]">
-                      Комментарий к заказу: не указан
-                    </div>
-                  )}
-
-                  {/* Status & Tracking */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                    <select
-                      value={order.status || 'new'}
-                      onChange={(e) => {
-                        haptic.select();
-                        onUpdateOrder(order.orderId, { status: e.target.value });
-                      }}
-                      className="bg-black border border-[#222222] focus:border-white text-white px-3 py-2 rounded-full outline-none"
+        return (
+          <div className="space-y-3">
+            {orders.length > 0 && (
+              <div className="space-y-2.5">
+                {/* Search Orders */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-[#666666] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    placeholder="Поиск по номеру SCRED-..., клиенту, @username, треку..."
+                    className="w-full bg-[#080808] border border-[#1f1f1f] focus:border-white text-white text-xs pl-9 pr-9 py-2.5 rounded-full outline-none placeholder-[#555555]"
+                  />
+                  {orderSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setOrderSearchQuery('')}
+                      aria-label="Очистить поиск заказов"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-white cursor-pointer"
                     >
-                      {ORDER_STATUSES.map((st) => (
-                        <option key={st.id} value={st.id}>
-                          {st.name}
-                        </option>
-                      ))}
-                    </select>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
 
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={draftTrack}
-                        onChange={(e) =>
-                          setTrackingDrafts({ ...trackingDrafts, [order.orderId]: e.target.value })
-                        }
-                        placeholder="Трек-номер"
-                        className="flex-1 bg-black border border-[#222222] focus:border-white text-white px-3 py-2 rounded-full outline-none"
-                      />
+                {/* Status Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic.select();
+                      setOrderStatusFilter('all');
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-[11px] border shrink-0 transition-colors cursor-pointer ${
+                      orderStatusFilter === 'all'
+                        ? 'bg-white text-black font-semibold border-white'
+                        : 'bg-[#080808] text-[#888888] border-[#1f1f1f] hover:text-white'
+                    }`}
+                  >
+                    Все ({orders.length})
+                  </button>
+                  {ORDER_STATUSES.map((st) => {
+                    const count = statusCounts[st.id] || 0;
+                    const active = orderStatusFilter === st.id;
+                    return (
                       <button
+                        key={st.id}
                         type="button"
                         onClick={() => {
-                          haptic.success();
-                          onUpdateOrder(order.orderId, { trackingNumber: draftTrack.trim() });
+                          haptic.select();
+                          setOrderStatusFilter(st.id);
                         }}
-                        className="px-3 py-2 rounded-full bg-white text-black font-semibold cursor-pointer"
+                        className={`px-3 py-1.5 rounded-full text-[11px] border shrink-0 transition-colors cursor-pointer ${
+                          active
+                            ? 'bg-white text-black font-semibold border-white'
+                            : 'bg-[#080808] text-[#888888] border-[#1f1f1f] hover:text-white'
+                        }`}
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        {st.name} ({count})
                       </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {orders.length === 0 ? (
+              <div className="p-8 text-center border border-[#161616] rounded-2xl text-xs text-[#777777]">
+                Пока нет оформленных заказов.
+              </div>
+            ) : filteredOrders.length === 0 ? (
+              <div className="p-8 text-center border border-[#161616] rounded-2xl text-xs text-[#777777] space-y-2.5">
+                <p>По выбранному фильтру заказов не найдено.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderStatusFilter('all');
+                    setOrderSearchQuery('');
+                  }}
+                  className="px-4 py-2 rounded-full border border-[#333333] hover:border-white text-white text-xs cursor-pointer"
+                >
+                  Сбросить фильтры
+                </button>
+              </div>
+            ) : (
+              filteredOrders.map((order) => {
+                const draftTrack =
+                  trackingDrafts[order.orderId] !== undefined
+                    ? trackingDrafts[order.orderId]
+                    : order.trackingNumber || '';
+                const tgIdNum = Number(order.customer?.telegramId) || 0;
+                const isTgIdCopied = tgIdNum > 0 && copiedTgId === String(tgIdNum);
+                const isTrackSaved = savedTrackingId === order.orderId;
+
+                return (
+                  <div key={order.orderId} className="p-4 bg-[#080808] border border-[#1a1a1a] rounded-xl space-y-3 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#141414] pb-2">
+                      <div>
+                        <span className="font-semibold text-white">{order.orderId}</span>
+                        <span className="text-[#666666] ml-2 text-[11px]">
+                          {new Date(order.timestamp).toLocaleString('ru-RU')}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">
+                          {formatPrice(order.pricing?.total)}
+                        </span>
+                        {isOwner && (
+                          <button
+                            onClick={() => {
+                              haptic.medium();
+                              onDeleteOrder(order.orderId);
+                            }}
+                            className="w-7 h-7 rounded-full border border-[#222222] hover:border-white flex items-center justify-center text-[#777777] hover:text-white cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Customer Info */}
+                    <div className="space-y-1 text-[#999999]">
+                      <div>
+                        Получатель:{' '}
+                        <span className="text-white">
+                          {order.customer?.fullName || 'Покупатель'}
+                        </span>
+                        {order.customer?.phone ? ` (${order.customer.phone})` : ''}
+                      </div>
+                      {order.customer?.telegramUsername ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>Telegram:</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openTelegramLink(
+                                `https://t.me/${order.customer.telegramUsername.replace(/^@/, '')}`
+                              )
+                            }
+                            className="text-white underline underline-offset-4 inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>{order.customer.telegramUsername}</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                          {tgIdNum > 0 && (
+                            <span className="text-[11px] font-mono text-[#666666]">
+                              · ID {tgIdNum}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        tgIdNum > 0 && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span>Telegram: юзернейм скрыт ·</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyTgId(tgIdNum)}
+                              className="px-2 py-0.5 rounded-full bg-black border border-[#262626] hover:border-white text-[11px] font-mono text-white inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>{isTgIdCopied ? 'Скопировано' : `ID ${tgIdNum}`}</span>
+                              {isTgIdCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                            </button>
+                            <a
+                              href={`tg://user?id=${tgIdNum}`}
+                              className="text-[11px] text-white underline underline-offset-4 inline-flex items-center gap-1"
+                            >
+                              <span>Профиль</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                        )
+                      )}
+                      <div>
+                        Доставка:{' '}
+                        <span className="text-white">
+                          {getDeliveryMethodLabel(order.delivery?.method)}
+                        </span>
+                        {order.delivery?.method !== 'pickup_blg' &&
+                          ` — ${order.delivery?.city}, ${order.delivery?.address}`}
+                      </div>
+                      <div>
+                        Оплата:{' '}
+                        <span className="text-white">
+                          {order.delivery?.method === 'pickup_blg'
+                            ? 'Обговор с владельцем (@dybriansik)'
+                            : getPaymentMethodLabel(order.paymentMethod)}
+                        </span>
+                      </div>
+                      {order.pricing?.promoCode && (
+                        <div>
+                          Промокод: <span className="text-white font-mono">{order.pricing.promoCode}</span>
+                          {Number(order.pricing?.discount) > 0 && ` (-${formatPrice(order.pricing.discount)})`}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Items */}
+                    <div className="p-2.5 bg-black border border-[#141414] rounded-lg space-y-1">
+                      {(order.items || []).map((it, idx) => (
+                        <div key={idx} className="flex justify-between text-[11px]">
+                          <span className="text-[#cccccc]">
+                            {it.name} ({it.size}) × {it.quantity}
+                          </span>
+                          <span className="text-white">{formatPrice(it.price * it.quantity)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Order Comment */}
+                    {order.comment ? (
+                      <div className="p-3 bg-black border border-[#262626] rounded-xl space-y-1">
+                        <div className="text-[10px] uppercase tracking-wider text-[#777777]">
+                          Комментарий к заказу
+                        </div>
+                        <p className="text-xs text-white leading-relaxed whitespace-pre-line break-words select-text">
+                          {order.comment}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-[#555555]">
+                        Комментарий к заказу: не указан
+                      </div>
+                    )}
+
+                    {/* Status & Tracking */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <select
+                        value={order.status || 'new'}
+                        onChange={(e) => {
+                          haptic.select();
+                          onUpdateOrder(order.orderId, { status: e.target.value });
+                        }}
+                        className="bg-black border border-[#222222] focus:border-white text-white px-3 py-2 rounded-full outline-none"
+                      >
+                        {ORDER_STATUSES.map((st) => (
+                          <option key={st.id} value={st.id}>
+                            {st.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={draftTrack}
+                          onChange={(e) =>
+                            setTrackingDrafts({ ...trackingDrafts, [order.orderId]: e.target.value })
+                          }
+                          placeholder="Трек-номер"
+                          className="flex-1 bg-black border border-[#222222] focus:border-white text-white px-3 py-2 rounded-full outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            haptic.success();
+                            await onUpdateOrder(order.orderId, { trackingNumber: draftTrack.trim() });
+                            setSavedTrackingId(order.orderId);
+                            setTimeout(() => {
+                              setSavedTrackingId((curr) => (curr === order.orderId ? '' : curr));
+                            }, 1600);
+                          }}
+                          className="px-3 py-2 rounded-full bg-white text-black font-semibold cursor-pointer inline-flex items-center gap-1"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          {isTrackSaved && <span className="text-[10px]">OK</span>}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
+                );
+              })
+            )}
+          </div>
+        );
+      })()}
 
       {/* ==================== SECTION: PROMOS (VISIBLE TO OWNER & SUPPORT) ==================== */}
       {section === 'promos' && (

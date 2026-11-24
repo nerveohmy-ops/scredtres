@@ -1,20 +1,31 @@
 // Authenticated Admin / Support mutation endpoint: POST /api/admin
-import { authenticateRequest, ROLES } from '../lib/auth.js';
+import { authenticateRequest, getBotToken, ROLES } from '../lib/auth.js';
 import {
   ALLOWED_CATEGORIES,
   ALLOWED_DELIVERY_METHODS,
   ALLOWED_ORDER_STATUSES,
   ALLOWED_PAYMENT_METHODS,
+  ORDER_STATUS_LABELS,
   DEFAULT_SETTINGS,
   isTursoConfigured,
   getTursoDb,
   formatTursoError,
   sanitizeImagesArray,
+  safeJsonParse,
+  readSettings,
   buildProductStatement,
   buildInfoStatement,
   buildOrderStatement,
   recordAuditLog
 } from '../lib/turso.js';
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const TG_USERNAME_RE = /^[a-zA-Z0-9_]{5,32}$/;
 const PROMO_CODE_RE = /^[A-Z0-9_-]{2,32}$/;
@@ -484,6 +495,15 @@ export default async function handler(req, res) {
           return res.status(400).json({ ok: false, error: 'No valid order fields to update' });
         }
 
+        const existingRes = await db.execute({
+          sql: `SELECT order_id, status, tracking_number, telegram_id, delivery_json FROM orders WHERE order_id = ? LIMIT 1`,
+          args: [idCheck.value]
+        });
+        if (existingRes.rows.length === 0) {
+          return res.status(404).json({ ok: false, error: 'Заказ не найден' });
+        }
+        const existingOrder = existingRes.rows[0];
+
         args.push(idCheck.value);
         await db.execute({
           sql: `UPDATE orders SET ${updates.join(', ')} WHERE order_id = ?`,
@@ -495,7 +515,62 @@ export default async function handler(req, res) {
           targetId: idCheck.value,
           details: auditDetails
         });
-        return res.status(200).json({ ok: true });
+
+        let notifiedBuyer = false;
+        const buyerTelegramId = Number(existingOrder.telegram_id) || 0;
+        const nextStatus = patch.status !== undefined ? patch.status : existingOrder.status;
+        const nextTrack =
+          patch.trackingNumber !== undefined
+            ? patch.trackingNumber.trim()
+            : String(existingOrder.tracking_number || '').trim();
+        const statusChanged =
+          patch.status !== undefined && patch.status !== existingOrder.status;
+        const trackingChanged =
+          patch.trackingNumber !== undefined &&
+          nextTrack !== String(existingOrder.tracking_number || '').trim() &&
+          Boolean(nextTrack);
+
+        const TOKEN = getBotToken();
+        if (TOKEN && buyerTelegramId > 0 && (statusChanged || trackingChanged)) {
+          try {
+            const settings = await readSettings(db);
+            const supportHandle = (settings.supportUsername || 'dybriansik').trim().replace(/^@+/, '');
+            const delivery = safeJsonParse(existingOrder.delivery_json, {});
+            const statusLabel = ORDER_STATUS_LABELS[nextStatus] || nextStatus;
+
+            const lines = [
+              `<b>Обновление заказа ${escapeHtml(idCheck.value)}</b>`,
+              '',
+              `Статус: <b>${escapeHtml(statusLabel)}</b>`
+            ];
+            if (nextTrack) {
+              lines.push(`Трек-номер СДЭК: <code>${escapeHtml(nextTrack)}</code>`);
+              if (delivery?.method !== 'pickup_blg') {
+                lines.push(
+                  `Отследить: https://www.cdek.ru/ru/tracking/?order_id=${encodeURIComponent(nextTrack)}`
+                );
+              }
+            }
+            lines.push('', `По вопросам: @${escapeHtml(supportHandle)}`);
+
+            const tgRes = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: buyerTelegramId,
+                text: lines.join('\n'),
+                parse_mode: 'HTML',
+                disable_web_page_preview: true
+              })
+            });
+            const tgData = await tgRes.json().catch(() => null);
+            notifiedBuyer = Boolean(tgRes.ok && tgData?.ok);
+          } catch (notifyErr) {
+            console.warn('Order update Telegram notification failed:', notifyErr);
+          }
+        }
+
+        return res.status(200).json({ ok: true, notifiedBuyer });
       }
 
       case 'delete_order': {

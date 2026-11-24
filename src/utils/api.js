@@ -75,3 +75,17 @@ export async function validatePromoCodeServer(code) {
     return { configured: false };
   }
 }
+
+export async function fetchLiveReviews(signal) {
+  try {
+    const res = await fetch('/api/reviews', {
+      method: 'GET',
+      signal
+    });
+    const data = await parseJsonSafe(res);
+    if (res.ok && data?.ok && Array.isArray(data.reviews)) {
+      return { ok: true, reviews: data.reviews };
+    }
+  } catch {}
+  return { ok: false, reviews: [] };
+}

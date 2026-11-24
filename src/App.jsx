@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Plus, MessageCircle, SearchX, Package, AlertCircle, X, ShoppingBag, Check } from 'lucide-react';
-import { store } from './utils/store';
+import { store, reconcileCartWithProducts } from './utils/store';
 import { fetchCatalogBootstrap, sendAdminAction } from './utils/api';
 import {
+  tg,
   initTelegramApp,
   getTelegramUser,
   setClosingConfirmation,
@@ -10,7 +11,7 @@ import {
   openTelegramLink,
   haptic
 } from './utils/telegram';
-import { ROLES, resolveUserRole, canManageProducts } from './utils/roles';
+import { ROLES, resolveUserRole, canManageProducts, isLocalDevEnvironment } from './utils/roles';
 
 import Header from './components/Header';
 import HeroBanner from './components/HeroBanner';
@@ -53,6 +54,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasPromosServer, setHasPromosServer] = useState(false);
   const [syncError, setSyncError] = useState('');
+  const [cartNotice, setCartNotice] = useState('');
 
   // Role & User (localhost preview override only works off-Telegram on localhost)
   const [devRoleOverride, setDevRoleOverride] = useState(null);
@@ -60,6 +62,7 @@ export default function App() {
   const tgUser = getTelegramUser(devRoleOverride);
   const role = resolveUserRole(tgUser, devRoleOverride, serverRole);
   const isStaff = canManageProducts(role);
+  const isBrowserGuest = dbConfigured && !tg?.initData && !isLocalDevEnvironment();
   const supportUsername = (settings?.supportUsername || 'dybriansik').replace(/^@/, '');
 
   // Navigation & Filters
@@ -103,10 +106,26 @@ export default function App() {
 
     setDbError('');
     setServerRole(data.role ?? null);
-    setProducts(data.products || []);
+    const serverProducts = data.products || [];
+    setProducts(serverProducts);
     setInfoItems(data.infoItems || []);
     if (data.settings) setSettings(data.settings);
     setHasPromosServer(Boolean(data.hasPromos));
+    setCart((prevCart) => {
+      if (prevCart.length === 0) return prevCart;
+      const { nextCart, removedNames, priceUpdated } = reconcileCartWithProducts(
+        prevCart,
+        serverProducts
+      );
+      if (removedNames.length > 0) {
+        setCartNotice(
+          `Сняты с продажи и убраны из корзины: ${removedNames.join(', ')}`
+        );
+      } else if (priceUpdated) {
+        setCartNotice('Цены товаров в корзине обновлены по актуальному каталогу.');
+      }
+      return nextCart;
+    });
     if (Array.isArray(data.adminOrders)) {
       setOrders(data.adminOrders);
       setPromos(data.promos || []);
@@ -768,6 +787,9 @@ export default function App() {
         promos={promos}
         hasPromos={hasPromosServer}
         dbConfigured={dbConfigured}
+        isBrowserGuest={isBrowserGuest}
+        cartNotice={cartNotice}
+        onDismissCartNotice={() => setCartNotice('')}
         settings={settings}
         onUpdateQuantity={handleUpdateCartQuantity}
         onRemoveItem={handleRemoveCartItem}
@@ -783,6 +805,7 @@ export default function App() {
         orderSummary={checkoutSummary}
         supportUsername={supportUsername}
         dbConfigured={dbConfigured}
+        isBrowserGuest={isBrowserGuest}
         devRoleOverride={devRoleOverride}
         onOrderSuccess={handleOrderSuccess}
       />

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Plus, Minus, ShoppingBag, ImageOff } from 'lucide-react';
-import { haptic } from '../utils/telegram';
+import { X, Trash2, Plus, Minus, ShoppingBag, ImageOff, AlertCircle } from 'lucide-react';
+import { haptic, openTelegramLink } from '../utils/telegram';
 import { formatPrice } from '../utils/store';
 import { validatePromoCodeServer } from '../utils/api';
 
@@ -11,6 +11,9 @@ export default function CartDrawer({
   promos = [],
   hasPromos = false,
   dbConfigured = false,
+  isBrowserGuest = false,
+  cartNotice = '',
+  onDismissCartNotice,
   settings,
   onUpdateQuantity,
   onRemoveItem,
@@ -116,6 +119,42 @@ export default function CartDrawer({
 
         {/* Items List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {cartNotice && (
+            <div className="p-3 rounded-xl bg-[#111111] border border-[#2c2c2c] text-xs text-[#e5e5e5] flex items-start justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-white shrink-0 mt-0.5" />
+                <span>{cartNotice}</span>
+              </div>
+              {onDismissCartNotice && (
+                <button
+                  type="button"
+                  onClick={onDismissCartNotice}
+                  className="text-[#777777] hover:text-white cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {isBrowserGuest && items.length > 0 && (
+            <div className="p-3 rounded-xl bg-[#111111] border border-[#2c2c2c] text-xs text-[#cccccc] flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-white shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p>
+                  Вы просматриваете магазин в браузере. Для оформления заказа откройте приложение в Telegram.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => openTelegramLink('https://t.me/dybriansik')}
+                  className="text-white underline underline-offset-4 cursor-pointer"
+                >
+                  Связаться с @dybriansik
+                </button>
+              </div>
+            </div>
+          )}
+
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
               <ShoppingBag className="w-8 h-8 text-[#444444]" />

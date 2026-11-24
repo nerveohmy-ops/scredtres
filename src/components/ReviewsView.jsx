@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { REVIEWS, REVIEWS_CHANNEL_URL } from '../data/reviews';
 import { haptic, openTelegramLink } from '../utils/telegram';
+import { fetchLiveReviews } from '../utils/api';
 
 function formatReviewDate(isoDate) {
   if (!isoDate) return '';
@@ -82,23 +83,50 @@ function ReviewThumbnail({ src, alt, isVideoNote, videoDuration, onClick, classN
 export default function ReviewsView({ onGoToCatalog }) {
   const [filter, setFilter] = useState('all'); // 'all' | 'with_photo'
   const [lightbox, setLightbox] = useState(null); // { review, index }
+  const [liveReviews, setLiveReviews] = useState([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchLiveReviews(controller.signal).then((res) => {
+      if (res.ok && Array.isArray(res.reviews) && res.reviews.length > 0) {
+        setLiveReviews(res.reviews);
+      }
+    });
+    return () => controller.abort();
+  }, []);
+
+  const allReviews = useMemo(() => {
+    if (liveReviews.length === 0) return REVIEWS;
+    const knownPostIds = new Set();
+    for (const r of REVIEWS) {
+      if (r.postId) knownPostIds.add(Number(r.postId));
+      if (Array.isArray(r.postIds)) {
+        for (const id of r.postIds) knownPostIds.add(Number(id));
+      }
+    }
+    const newer = liveReviews.filter((r) => {
+      const ids = Array.isArray(r.postIds) && r.postIds.length ? r.postIds : [r.postId];
+      return ids.some((id) => !knownPostIds.has(Number(id)));
+    });
+    return newer.length > 0 ? [...newer, ...REVIEWS] : REVIEWS;
+  }, [liveReviews]);
 
   const stats = useMemo(() => {
-    const totalReviews = REVIEWS.length;
-    const withPhotos = REVIEWS.filter((r) => Array.isArray(r.images) && r.images.length > 0).length;
-    const totalPhotos = REVIEWS.reduce(
+    const totalReviews = allReviews.length;
+    const withPhotos = allReviews.filter((r) => Array.isArray(r.images) && r.images.length > 0).length;
+    const totalPhotos = allReviews.reduce(
       (sum, r) => sum + (Array.isArray(r.images) ? r.images.length : 0),
       0
     );
     return { totalReviews, withPhotos, totalPhotos };
-  }, []);
+  }, [allReviews]);
 
   const filteredReviews = useMemo(() => {
     if (filter === 'with_photo') {
-      return REVIEWS.filter((r) => Array.isArray(r.images) && r.images.length > 0);
+      return allReviews.filter((r) => Array.isArray(r.images) && r.images.length > 0);
     }
-    return REVIEWS;
-  }, [filter]);
+    return allReviews;
+  }, [filter, allReviews]);
 
   const openLightbox = useCallback((review, index = 0) => {
     haptic.light();

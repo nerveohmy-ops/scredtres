@@ -1,5 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Heart, Plus, Minus, Check, Ruler, ImageOff, Plane, PackageCheck, ShoppingBag } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  X,
+  Heart,
+  Plus,
+  Minus,
+  Check,
+  Ruler,
+  ImageOff,
+  Plane,
+  PackageCheck,
+  ShoppingBag,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn
+} from 'lucide-react';
 import { haptic } from '../utils/telegram';
 import { formatPrice } from '../utils/store';
 import { CATEGORIES, DEFAULT_DELIVERY_DAYS } from '../data/products';
@@ -19,7 +33,21 @@ export default function ProductModal({
   const [showSizeGuide, setShowSizeGuide] = useState(false);
   const [addedAnimation, setAddedAnimation] = useState(false);
   const [brokenImages, setBrokenImages] = useState({});
+  const [zoomOpen, setZoomOpen] = useState(false);
   const addTimerRef = useRef(null);
+  const touchStartXRef = useRef(null);
+
+  const images = product?.images || [];
+  const imageCount = images.length;
+
+  const stepImage = useCallback(
+    (delta) => {
+      if (imageCount <= 1) return;
+      haptic.select();
+      setActiveImageIndex((prev) => (prev + delta + imageCount) % imageCount);
+    },
+    [imageCount]
+  );
 
   useEffect(() => {
     if (!product) return;
@@ -30,7 +58,19 @@ export default function ProductModal({
     setShowSizeGuide(false);
     setAddedAnimation(false);
     setBrokenImages({});
+    setZoomOpen(false);
   }, [product?.id]);
+
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setZoomOpen(false);
+      if (e.key === 'ArrowLeft') stepImage(-1);
+      if (e.key === 'ArrowRight') stepImage(1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [zoomOpen, stepImage]);
 
   useEffect(() => {
     return () => {
@@ -40,11 +80,25 @@ export default function ProductModal({
 
   if (!product) return null;
 
-  const images = product.images || [];
   const currentImg = images[activeImageIndex];
   const isPreOrder = product.availability === 'pre_order';
   const categoryName = CATEGORIES.find((c) => c.id === product.category)?.name || product.category;
   const supportHandle = (supportUsername || 'dybriansik').replace(/^@/, '').trim() || 'dybriansik';
+
+  const handleTouchStart = (e) => {
+    touchStartXRef.current = e.touches?.[0]?.clientX ?? null;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartXRef.current === null || images.length <= 1) return;
+    const endX = e.changedTouches?.[0]?.clientX;
+    if (typeof endX !== 'number') return;
+    const dx = endX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(dx) >= 40) {
+      stepImage(dx < 0 ? 1 : -1);
+    }
+  };
 
   const handleAddToCart = () => {
     haptic.medium();
@@ -96,21 +150,72 @@ export default function ProductModal({
         {/* Modal Body */}
         <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-6">
           
-          {/* Main Visual */}
+          {/* Main Visual (swipe + click to zoom) */}
           <div className="space-y-2">
-            <div className="relative aspect-[3/4] bg-black border border-[#141414] rounded-xl overflow-hidden flex items-center justify-center">
+            <div
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              className="relative aspect-[3/4] bg-black border border-[#141414] rounded-xl overflow-hidden flex items-center justify-center group"
+            >
               {currentImg && !brokenImages[activeImageIndex] ? (
-                <img
-                  src={currentImg}
-                  alt={product.name}
-                  onError={() => setBrokenImages((prev) => ({ ...prev, [activeImageIndex]: true }))}
-                  className="w-full h-full object-cover"
-                />
+                <>
+                  <img
+                    src={currentImg}
+                    alt={product.name}
+                    onClick={() => {
+                      haptic.light();
+                      setZoomOpen(true);
+                    }}
+                    onError={() => setBrokenImages((prev) => ({ ...prev, [activeImageIndex]: true }))}
+                    className="w-full h-full object-cover cursor-zoom-in"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      haptic.light();
+                      setZoomOpen(true);
+                    }}
+                    aria-label="Увеличить фото"
+                    className="absolute bottom-2.5 right-2.5 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-white flex items-center justify-center cursor-pointer hover:border-white transition-colors"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center text-[#444444] gap-2">
                   <ImageOff className="w-8 h-8" />
                   <span className="text-xs">Изображение отсутствует</span>
                 </div>
+              )}
+
+              {images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stepImage(-1);
+                    }}
+                    aria-label="Предыдущее фото"
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-white flex items-center justify-center cursor-pointer hover:border-white transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stepImage(1);
+                    }}
+                    aria-label="Следующее фото"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-white flex items-center justify-center cursor-pointer hover:border-white transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <span className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[10px] text-white font-medium">
+                    {activeImageIndex + 1} / {images.length}
+                  </span>
+                </>
               )}
             </div>
 
@@ -313,6 +418,77 @@ export default function ProductModal({
         </div>
 
       </div>
+
+      {/* Fullscreen Lightbox Zoom */}
+      {zoomOpen && currentImg && !brokenImages[activeImageIndex] && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex flex-col justify-between p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Увеличенное фото товара"
+          onClick={() => setZoomOpen(false)}
+        >
+          <div
+            className="max-w-4xl w-full mx-auto flex items-center justify-between gap-3 py-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{product.name}</p>
+              {images.length > 1 && (
+                <p className="text-[11px] text-[#777777]">
+                  Фото {activeImageIndex + 1} / {images.length}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                haptic.light();
+                setZoomOpen(false);
+              }}
+              aria-label="Закрыть увеличение"
+              className="w-9 h-9 rounded-full bg-[#111111] border border-[#262626] hover:border-white text-white flex items-center justify-center cursor-pointer transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex-1 flex items-center justify-center max-w-5xl w-full mx-auto my-2 min-h-0"
+          >
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => stepImage(-1)}
+                aria-label="Предыдущее фото"
+                className="absolute left-1 sm:left-3 z-10 w-10 h-10 rounded-full bg-black/80 border border-[#2a2a2a] hover:border-white text-white flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+
+            <img
+              src={currentImg}
+              alt={product.name}
+              className="max-w-full max-h-[80vh] object-contain rounded-xl border border-[#1a1a1a] bg-black"
+            />
+
+            {images.length > 1 && (
+              <button
+                type="button"
+                onClick={() => stepImage(1)}
+                aria-label="Следующее фото"
+                className="absolute right-1 sm:right-3 z-10 w-10 h-10 rounded-full bg-black/80 border border-[#2a2a2a] hover:border-white text-white flex items-center justify-center cursor-pointer transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

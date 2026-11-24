@@ -91,6 +91,35 @@ export const formatRuPhone = (subscriberDigits) => {
   return out;
 };
 
+export const reconcileCartWithProducts = (cartItems, serverProducts) => {
+  if (!Array.isArray(cartItems) || !Array.isArray(serverProducts)) {
+    return { nextCart: Array.isArray(cartItems) ? cartItems : [], removedNames: [], priceUpdated: false };
+  }
+  const byId = new Map(serverProducts.map((p) => [p.id, p]));
+  const nextCart = [];
+  const removedNames = [];
+  let priceUpdated = false;
+
+  for (const item of cartItems) {
+    const id = item?.product?.id;
+    if (!id) continue;
+    const fresh = byId.get(id);
+    if (!fresh) {
+      if (item.product?.name) removedNames.push(item.product.name);
+      continue;
+    }
+    if (Number(fresh.price) !== Number(item.product?.price)) {
+      priceUpdated = true;
+    }
+    nextCart.push({
+      ...item,
+      product: fresh
+    });
+  }
+
+  return { nextCart, removedNames, priceUpdated };
+};
+
 // Compresses uploaded photos cleanly so local storage doesn't overflow
 export const compressImageFile = (file, maxDimension = 900, quality = 0.78) => {
   return new Promise((resolve, reject) => {

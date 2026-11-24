@@ -22,6 +22,7 @@ export default function CheckoutModal({
   orderSummary, 
   supportUsername = 'dybriansik',
   dbConfigured = false,
+  isBrowserGuest = false,
   devRoleOverride,
   onOrderSuccess 
 }) {
@@ -302,7 +303,10 @@ export default function CheckoutModal({
                       orderComplete.delivery?.method === 'pickup_blg'
                         ? OWNER_HANDLE
                         : supportHandle;
-                    openTelegramLink(`https://t.me/${contactHandle}`);
+                    const msg = `Здравствуйте! По заказу ${orderComplete.orderId}`;
+                    openTelegramLink(
+                      `https://t.me/${contactHandle}?text=${encodeURIComponent(msg)}`
+                    );
                   }}
                   className="w-full py-3 rounded-full border border-[#333333] hover:border-white text-white text-xs font-medium tracking-wider uppercase transition-colors cursor-pointer"
                 >
@@ -326,6 +330,24 @@ export default function CheckoutModal({
           ) : (
             <form onSubmit={handleSubmitOrder} className="space-y-5 text-xs">
               
+              {isBrowserGuest && (
+                <div className="p-3 rounded-xl border border-[#333333] bg-[#111111] text-[#dddddd] flex items-start gap-2 text-xs">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-white" />
+                  <div className="space-y-1">
+                    <p>
+                      Вы открыли магазин в обычном браузере. Чтобы оформить заказ, запустите мини-приложение внутри Telegram-бота.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openTelegramLink(`https://t.me/${OWNER_HANDLE}`)}
+                      className="text-white underline underline-offset-4 cursor-pointer"
+                    >
+                      Написать @{OWNER_HANDLE}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {formError && (
                 <div className="p-3 rounded-xl border border-white bg-[#141414] text-white flex items-center gap-2 text-xs">
                   <AlertCircle className="w-4 h-4 shrink-0" />
