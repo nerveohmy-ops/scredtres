@@ -65,6 +65,32 @@ export const formatPrice = (val) => {
   return new Intl.NumberFormat('ru-RU').format(Number(val) || 0) + ' ₽';
 };
 
+export const PHONE_MAX_LENGTH = 18; // "+7 (999) 000-00-00"
+
+export const getRuPhoneDigits = (raw) => {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('7') || digits.startsWith('8')) {
+    digits = digits.slice(1);
+  }
+  // Handle pasting a full 11-digit number (7.../8...) right into "+7 "
+  if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) {
+    digits = digits.slice(1);
+  }
+  return digits.slice(0, 10);
+};
+
+export const formatRuPhone = (subscriberDigits) => {
+  const d = String(subscriberDigits || '').slice(0, 10);
+  if (!d) return '+7 ';
+  let out = `+7 (${d.slice(0, 3)}`;
+  if (d.length >= 3) out += ')';
+  if (d.length > 3) out += ` ${d.slice(3, 6)}`;
+  if (d.length > 6) out += `-${d.slice(6, 8)}`;
+  if (d.length > 8) out += `-${d.slice(8, 10)}`;
+  return out;
+};
+
 // Compresses uploaded photos cleanly so local storage doesn't overflow
 export const compressImageFile = (file, maxDimension = 900, quality = 0.78) => {
   return new Promise((resolve, reject) => {

@@ -1,7 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, AlertCircle } from 'lucide-react';
 import { getTelegramUser, submitOrderToServer, openTelegramLink, haptic } from '../utils/telegram';
-import { formatPrice } from '../utils/store';
+import {
+  formatPrice,
+  PHONE_MAX_LENGTH,
+  getRuPhoneDigits,
+  formatRuPhone
+} from '../utils/store';
 import {
   DELIVERY_METHODS,
   PAYMENT_METHODS,
@@ -60,6 +65,32 @@ export default function CheckoutModal({
       effectiveShipping
   );
 
+  const handlePhoneChange = (e) => {
+    const raw = e.target.value;
+    const prevDigits = getRuPhoneDigits(phone);
+    let nextDigits = getRuPhoneDigits(raw);
+
+    // Handle Backspace pressed right on a mask separator (e.g. ")", "-", or space)
+    if (raw.length < phone.length && nextDigits === prevDigits && prevDigits.length > 0) {
+      nextDigits = prevDigits.slice(0, -1);
+    }
+
+    setPhone(formatRuPhone(nextDigits));
+  };
+
+  const handlePhonePaste = (e) => {
+    const pasted = e.clipboardData?.getData('text') || '';
+    if (!pasted) return;
+    e.preventDefault();
+    const pastedDigits = getRuPhoneDigits(pasted);
+    if (pastedDigits.length >= 10 || phone === '+7 ') {
+      setPhone(formatRuPhone(pastedDigits));
+      return;
+    }
+    const merged = (getRuPhoneDigits(phone) + pastedDigits).slice(0, 10);
+    setPhone(formatRuPhone(merged));
+  };
+
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -67,7 +98,7 @@ export default function CheckoutModal({
 
     const tgFullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim();
     const cleanName = fullName.trim();
-    const phoneDigits = phone.replace(/\D/g, '');
+    const phoneDigits = getRuPhoneDigits(phone);
     const cleanCity = city.trim();
     const cleanAddress = address.trim();
 
@@ -78,8 +109,8 @@ export default function CheckoutModal({
         return;
       }
 
-      if (phoneDigits.length < 10) {
-        setFormError('Введите корректный номер телефона (минимум 10 цифр).');
+      if (phoneDigits.length !== 10) {
+        setFormError('Введите корректный номер телефона: +7 (XXX) XXX-XX-XX.');
         haptic.error();
         return;
       }
@@ -372,10 +403,14 @@ export default function CheckoutModal({
                         <label className="block text-[11px] text-[#666666] mb-1">Телефон *</label>
                         <input
                           type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
                           required
+                          maxLength={PHONE_MAX_LENGTH}
                           value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          placeholder="+7 999 000-00-00"
+                          onChange={handlePhoneChange}
+                          onPaste={handlePhonePaste}
+                          placeholder="+7 (999) 000-00-00"
                           className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
                         />
                       </div>
