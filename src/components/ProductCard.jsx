@@ -73,13 +73,17 @@ export default function ProductCard({
           </div>
         )}
 
-        {/* Highlight only in-stock or discounted items to keep grid noise-free */}
+        {/* Availability & Discount Pills */}
         <div className="absolute top-2 left-2 flex items-center gap-1">
-          {isInStock && (
-            <span className="px-2 py-0.5 rounded-full bg-white text-black text-[9px] font-semibold tracking-wide">
-              В наличии
-            </span>
-          )}
+          <span
+            className={`px-2 py-0.5 rounded-full text-[9px] font-medium backdrop-blur-md border ${
+              isInStock
+                ? 'bg-white/95 text-black border-white font-semibold'
+                : 'bg-black/75 text-[#ececec] border-white/15'
+            }`}
+          >
+            {isInStock ? 'В наличии' : 'Под заказ'}
+          </span>
           {hasDiscount && discountPercent >= 1 && (
             <span className="px-1.5 py-0.5 rounded-full bg-black/80 backdrop-blur-md border border-white/15 text-[9px] font-semibold text-white">
               -{discountPercent}%
