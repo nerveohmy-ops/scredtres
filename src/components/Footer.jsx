@@ -1,6 +1,7 @@
 import React from 'react';
 import logoImg from '../assets/logo.jpg';
 import { haptic } from '../utils/telegram';
+import SocialLinks from './SocialLinks';
 
 export default function Footer({ onGoHome }) {
   const handleClick = () => {
@@ -29,6 +30,10 @@ export default function Footer({ onGoHome }) {
           <p className="text-[11px] text-[#777777]">
             Выкуп и доставка оригинальной одежды из Китая
           </p>
+        </div>
+
+        <div className="pt-2">
+          <SocialLinks variant="pills" />
         </div>
 
         <div className="text-[10px] text-[#444444] pt-2">

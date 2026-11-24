@@ -115,9 +115,15 @@ export const openTelegramLink = (url) => {
       tg.openTelegramLink(url);
       return;
     }
+    if (tg?.openLink && /^https?:\/\//i.test(url)) {
+      tg.openLink(url);
+      return;
+    }
   } catch {}
   window.open(url, '_blank', 'noopener,noreferrer');
 };
+
+export const openExternalLink = openTelegramLink;
 
 export const submitOrderToServer = async (orderData) => {
   const initData = tg?.initData || '';

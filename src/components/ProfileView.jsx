@@ -17,6 +17,7 @@ import {
 import { formatPrice } from '../utils/store';
 import { getTelegramUser, haptic, openTelegramLink } from '../utils/telegram';
 import { ROLES, getRoleLabel, isLocalDevEnvironment, canManageInfo } from '../utils/roles';
+import SocialLinks from './SocialLinks';
 
 export default function ProfileView({
   role,
@@ -201,6 +202,14 @@ export default function ProfileView({
         </div>
         <ExternalLink className="w-4 h-4 text-[#777777] shrink-0" />
       </button>
+
+      {/* Social Media & Marketplaces */}
+      <section className="space-y-3">
+        <h3 className="text-xs font-medium text-[#777777] uppercase tracking-wider">
+          Соцсети и площадки
+        </h3>
+        <SocialLinks variant="grid" />
+      </section>
 
       {/* Dynamic Info Blocks managed by Support & Owner (@dybriansik) */}
       {(infoItems.length > 0 || isStaff) && (
