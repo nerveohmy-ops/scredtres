@@ -187,12 +187,12 @@ export default function CartDrawer({
                   className="p-3 bg-[#080808] border border-[#141414] rounded-xl flex gap-3"
                 >
                   {/* Thumb */}
-                  <div className="w-18 h-22 bg-black border border-[#1c1c1c] rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                  <div className="w-18 h-22 bg-[#141416] border border-[#1f1f1f] rounded-lg overflow-hidden shrink-0 flex items-center justify-center p-1">
                     {thumb ? (
                       <img
                         src={thumb}
                         alt={item.product.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                     ) : (
                       <ImageOff className="w-4 h-4 text-[#444444]" />

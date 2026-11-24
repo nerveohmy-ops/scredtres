@@ -528,9 +528,9 @@ export default function AdminPanel({
                         className="p-3.5 bg-[#080808] border border-[#1a1a1a] rounded-xl flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-12 h-14 rounded-lg bg-black border border-[#222222] overflow-hidden shrink-0 flex items-center justify-center">
+                          <div className="w-12 h-14 rounded-lg bg-[#141416] border border-[#222222] overflow-hidden shrink-0 flex items-center justify-center p-1">
                             {p.images?.[0] ? (
-                              <img src={p.images[0]} alt="" className="w-full h-full object-cover" />
+                              <img src={p.images[0]} alt="" className="w-full h-full object-contain" />
                             ) : (
                               <Package className="w-4 h-4 text-[#444444]" />
                             )}
@@ -775,8 +775,8 @@ export default function AdminPanel({
                 {editingProduct.images.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto py-1">
                     {editingProduct.images.map((src, idx) => (
-                      <div key={idx} className="relative w-16 h-20 rounded-lg overflow-hidden border border-[#2a2a2a] shrink-0">
-                        <img src={src} alt="" className="w-full h-full object-cover" />
+                      <div key={idx} className="relative w-16 h-20 rounded-lg bg-[#141416] overflow-hidden border border-[#2a2a2a] shrink-0 p-1">
+                        <img src={src} alt="" className="w-full h-full object-contain" />
                         <button
                           type="button"
                           onClick={() => handleRemoveImage(idx)}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Plus, MessageCircle, SearchX, Package, AlertCircle, X, ShoppingBag, Check } from 'lucide-react';
 import { store, reconcileCartWithProducts } from './utils/store';
+import { SEED_PRODUCTS } from './data/seedProducts';
 import { fetchCatalogBootstrap, sendAdminAction } from './utils/api';
 import {
   tg,
@@ -30,7 +31,10 @@ import Footer from './components/Footer';
 
 export default function App() {
   // Persistent store states
-  const [products, setProducts] = useState(() => store.getProducts());
+  const [products, setProducts] = useState(() => {
+    const saved = store.getProducts();
+    return saved.length > 0 ? saved : SEED_PRODUCTS;
+  });
   const [infoItems, setInfoItems] = useState(() => store.getInfoItems());
   const [orders, setOrders] = useState(() => store.getOrders());
   const [promos, setPromos] = useState(() => store.getPromos());
@@ -161,9 +165,14 @@ export default function App() {
     }
   }, [activeTab, role]);
 
-  // Persist changes to localStorage only when Turso server DB is not configured
+  // Persist changes to localStorage only when Turso server DB is not configured and catalog was mutated locally
   useEffect(() => {
-    if (!dbConfigured) store.saveProducts(products);
+    if (
+      !dbConfigured &&
+      (localStorage.getItem('scredtres_products_v2') !== null || products !== SEED_PRODUCTS)
+    ) {
+      store.saveProducts(products);
+    }
   }, [products, dbConfigured]);
 
   useEffect(() => {

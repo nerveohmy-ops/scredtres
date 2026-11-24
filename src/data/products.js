@@ -69,7 +69,9 @@ export const getPaymentMethodLabel = (method) => {
   }
 };
 
+import { SEED_PRODUCTS } from './seedProducts';
+
 export const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'ONE SIZE'];
 
-// Начальный каталог пуст — товары добавляются через панель владельца (@dybriansik) и поддержки приложения
-export const PRODUCTS = [];
+// Позиции «под заказ из Китая» из @scredtres (начиная с поста #882), автозагружаются в Turso при первом запуске
+export const PRODUCTS = SEED_PRODUCTS;

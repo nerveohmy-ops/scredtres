@@ -64,14 +64,14 @@ export default function ProductCard({
       }}
       className="group flex flex-col rounded-2xl bg-[#090909] border border-[#1b1b1b] hover:border-[#383838] overflow-hidden transition-all duration-300 cursor-pointer shadow-[0_10px_28px_rgba(0,0,0,0.45)]"
     >
-      {/* Visual Product Display (true colors, zero filters) */}
-      <div className="relative aspect-[4/5] bg-[#111111] overflow-hidden flex items-center justify-center">
+      {/* Visual Product Display (transparent cutouts over studio slate backdrop) */}
+      <div className="relative aspect-[4/5] bg-[radial-gradient(circle_at_50%_45%,#242428_0%,#121214_70%,#0a0a0c_100%)] overflow-hidden flex items-center justify-center">
         {primaryImage && !imgError ? (
           <img
             src={primaryImage}
             alt={product.name}
             onError={() => setImgError(true)}
-            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 ease-out"
+            className="w-full h-full object-contain p-3 sm:p-4 drop-shadow-[0_12px_20px_rgba(0,0,0,0.65)] group-hover:scale-[1.04] transition-transform duration-500 ease-out"
             loading="lazy"
           />
         ) : (

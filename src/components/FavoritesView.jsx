@@ -17,7 +17,7 @@ function FavoriteProductImage({ src, alt }) {
       src={src}
       alt={alt}
       onError={() => setFailed(true)}
-      className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-700"
+      className="w-full h-full object-contain p-3 drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)] group-hover:scale-[1.04] transition-transform duration-500"
     />
   );
 }
@@ -81,7 +81,7 @@ export default function FavoritesView({
               }}
               className="group flex flex-col rounded-2xl bg-[#090909] border border-[#1b1b1b] hover:border-[#383838] overflow-hidden transition-all duration-300 cursor-pointer"
             >
-              <div className="relative aspect-[4/5] bg-[#111111] overflow-hidden">
+              <div className="relative aspect-[4/5] bg-[radial-gradient(circle_at_50%_45%,#242428_0%,#121214_70%,#0a0a0c_100%)] overflow-hidden">
                 <FavoriteProductImage src={product.images?.[0]} alt={product.name} />
                 <button
                   type="button"

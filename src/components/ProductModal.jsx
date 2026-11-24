@@ -155,7 +155,7 @@ export default function ProductModal({
             <div
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
-              className="relative aspect-[3/4] bg-black border border-[#141414] rounded-xl overflow-hidden flex items-center justify-center group"
+              className="relative aspect-[3/4] bg-[radial-gradient(circle_at_50%_45%,#242428_0%,#111113_70%,#08080a_100%)] border border-[#1a1a1a] rounded-xl overflow-hidden flex items-center justify-center group"
             >
               {currentImg && !brokenImages[activeImageIndex] ? (
                 <>
@@ -167,7 +167,7 @@ export default function ProductModal({
                       setZoomOpen(true);
                     }}
                     onError={() => setBrokenImages((prev) => ({ ...prev, [activeImageIndex]: true }))}
-                    className="w-full h-full object-cover cursor-zoom-in"
+                    className="w-full h-full object-contain p-4 sm:p-6 drop-shadow-[0_16px_28px_rgba(0,0,0,0.75)] cursor-zoom-in"
                   />
                   <button
                     type="button"
@@ -234,7 +234,7 @@ export default function ProductModal({
                         : 'border-[#222222] opacity-40 hover:opacity-80'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={img} alt="" className="w-full h-full object-contain p-1 bg-[#141416]" />
                   </button>
                 ))}
               </div>
