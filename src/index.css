@@ -57,6 +57,13 @@
   padding-top: max(12px, env(safe-area-inset-top));
 }
 
+/* Offscreen catalog card layout/paint skipping for smooth 60fps scroll */
+.product-card-opt {
+  content-visibility: auto;
+  contain-intrinsic-size: 270px;
+  contain: layout style paint;
+}
+
 @keyframes slideDown {
   from {
     opacity: 0;

@@ -29,6 +29,8 @@ import AdminPanel from './components/AdminPanel';
 import BottomNav from './components/BottomNav';
 import Footer from './components/Footer';
 
+const CATALOG_PAGE_SIZE = 24;
+
 export default function App() {
   // Persistent store states
   const [products, setProducts] = useState(() => {
@@ -77,6 +79,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState('newest');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [visibleCount, setVisibleCount] = useState(CATALOG_PAGE_SIZE);
 
   // Overlays & Modals
   const [searchOpen, setSearchOpen] = useState(false);
@@ -87,6 +90,7 @@ export default function App() {
   const [cartToast, setCartToast] = useState(null);
 
   const catalogRef = useRef(null);
+  const loadMoreRef = useRef(null);
   const lastSyncRef = useRef(0);
   const cartToastTimerRef = useRef(null);
 
@@ -312,7 +316,7 @@ export default function App() {
   };
 
   // Cart Actions (stored strictly as { product, size, quantity })
-  const handleAddToCart = (product, size, quantity = 1) => {
+  const handleAddToCart = useCallback((product, size, quantity = 1) => {
     const chosenSize = size || product.sizes?.[0] || 'ONE SIZE';
     setCart((prev) => {
       const existingIndex = prev.findIndex(
@@ -333,7 +337,12 @@ export default function App() {
     setCartToast({ name: product.name, size: chosenSize });
     if (cartToastTimerRef.current) clearTimeout(cartToastTimerRef.current);
     cartToastTimerRef.current = setTimeout(() => setCartToast(null), 3200);
-  };
+  }, []);
+
+  const handleQuickAddCard = useCallback(
+    (product, size) => handleAddToCart(product, size, 1),
+    [handleAddToCart]
+  );
 
   const handleUpdateCartQuantity = (productId, size, newQuantity) => {
     if (newQuantity <= 0) {
@@ -356,11 +365,42 @@ export default function App() {
   };
 
   // Favorites Actions
-  const handleToggleFavorite = (productId) => {
+  const handleToggleFavorite = useCallback((productId) => {
     setFavorites((prev) =>
       prev.includes(productId) ? prev.filter((id) => id !== productId) : [...prev, productId]
     );
-  };
+  }, []);
+
+  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
+
+  // Progressive catalog batching so initial mount & mobile scroll stay smooth
+  useEffect(() => {
+    setVisibleCount(CATALOG_PAGE_SIZE);
+  }, [activeCategory, availabilityFilter, searchQuery, sortBy, minPrice, maxPrice]);
+
+  const visibleProducts = useMemo(
+    () => filteredProducts.slice(0, visibleCount),
+    [filteredProducts, visibleCount]
+  );
+
+  useEffect(() => {
+    if (activeTab !== 'catalog' || visibleCount >= filteredProducts.length) return;
+    const node = loadMoreRef.current;
+    if (!node || typeof IntersectionObserver !== 'function') return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisibleCount((prev) =>
+            Math.min(filteredProducts.length, prev + CATALOG_PAGE_SIZE)
+          );
+        }
+      },
+      { rootMargin: '700px 0px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [activeTab, visibleCount, filteredProducts.length]);
 
   // Order Submission
   const handleProceedToCheckout = (summary) => {
@@ -650,18 +690,36 @@ export default function App() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
-                  {filteredProducts.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      onSelectProduct={setSelectedProduct}
-                      isFavorite={favorites.includes(product.id)}
-                      onToggleFavorite={handleToggleFavorite}
-                      onQuickAddToCart={(prod, size) => handleAddToCart(prod, size, 1)}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                    {visibleProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onSelectProduct={setSelectedProduct}
+                        isFavorite={favoriteSet.has(product.id)}
+                        onToggleFavorite={handleToggleFavorite}
+                        onQuickAddToCart={handleQuickAddCard}
+                      />
+                    ))}
+                  </div>
+
+                  {visibleCount < filteredProducts.length && (
+                    <div ref={loadMoreRef} className="pt-6 pb-2 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setVisibleCount((prev) =>
+                            Math.min(filteredProducts.length, prev + CATALOG_PAGE_SIZE)
+                          )
+                        }
+                        className="px-6 py-2.5 rounded-full bg-[#111111] border border-[#262626] hover:border-white text-xs text-[#cccccc] hover:text-white transition-colors cursor-pointer"
+                      >
+                        Показать ещё ({filteredProducts.length - visibleCount})
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </section>
           </>

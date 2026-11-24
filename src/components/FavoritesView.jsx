@@ -16,8 +16,12 @@ function FavoriteProductImage({ src, alt }) {
     <img
       src={src}
       alt={alt}
+      width={400}
+      height={400}
+      decoding="async"
+      loading="lazy"
       onError={() => setFailed(true)}
-      className="w-full h-full object-contain p-3 drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)] group-hover:scale-[1.04] transition-transform duration-500"
+      className="w-full h-full object-contain p-2.5 sm:p-3"
     />
   );
 }
@@ -79,9 +83,9 @@ export default function FavoritesView({
                 haptic.light();
                 onSelectProduct(product);
               }}
-              className="group flex flex-col rounded-2xl bg-[#090909] border border-[#1a1a1c] hover:border-[#38383d] overflow-hidden transition-all duration-300 cursor-pointer"
+              className="product-card-opt group flex flex-col rounded-2xl bg-[#090909] border border-[#1a1a1c] hover:border-[#38383d] overflow-hidden transition-colors duration-200 cursor-pointer"
             >
-              <div className="relative aspect-square bg-[radial-gradient(circle_at_50%_45%,#242428_0%,#121214_72%,#09090b_100%)] overflow-hidden">
+              <div className="relative aspect-square bg-[#151518] overflow-hidden">
                 <FavoriteProductImage src={product.images?.[0]} alt={product.name} />
                 <button
                   type="button"
@@ -91,7 +95,7 @@ export default function FavoritesView({
                     onToggleFavorite(product.id);
                   }}
                   aria-label="Удалить из избранного"
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white transition-colors cursor-pointer"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/75 border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { Heart, Check, ImageOff, ShoppingBag, Layers } from 'lucide-react';
 import { haptic } from '../utils/telegram';
 import { formatPrice } from '../utils/store';
 
-export default function ProductCard({
+function ProductCard({
   product,
   onSelectProduct,
   isFavorite,
@@ -54,17 +54,20 @@ export default function ProductCard({
         haptic.light();
         onSelectProduct(product);
       }}
-      className="group flex flex-col rounded-2xl bg-[#090909] border border-[#1a1a1c] hover:border-[#38383d] overflow-hidden transition-all duration-300 cursor-pointer"
+      className="product-card-opt group flex flex-col rounded-2xl bg-[#090909] border border-[#1a1a1c] hover:border-[#38383d] overflow-hidden transition-colors duration-200 cursor-pointer"
     >
-      {/* Compact 1:1 Visual Cutout Stage */}
-      <div className="relative aspect-square bg-[radial-gradient(circle_at_50%_45%,#242428_0%,#121214_72%,#09090b_100%)] overflow-hidden flex items-center justify-center">
+      {/* Compact 1:1 Visual Cutout Stage (no expensive GPU blur or alpha drop-shadow during scroll) */}
+      <div className="relative aspect-square bg-[#151518] overflow-hidden flex items-center justify-center">
         {primaryImage && !imgError ? (
           <img
             src={primaryImage}
             alt={product.name}
-            onError={() => setImgError(true)}
-            className="w-full h-full object-contain p-2.5 sm:p-3 drop-shadow-[0_10px_18px_rgba(0,0,0,0.65)] group-hover:scale-[1.04] transition-transform duration-500 ease-out"
+            width={400}
+            height={400}
+            decoding="async"
             loading="lazy"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-contain p-2.5 sm:p-3"
           />
         ) : (
           <div className="flex flex-col items-center justify-center text-[#3a3a3a] gap-1.5 p-3 text-center">
@@ -76,16 +79,16 @@ export default function ProductCard({
         {/* Availability & Discount Pills */}
         <div className="absolute top-2 left-2 flex items-center gap-1">
           <span
-            className={`px-2 py-0.5 rounded-full text-[9px] font-medium backdrop-blur-md border ${
+            className={`px-2 py-0.5 rounded-full text-[9px] font-medium border ${
               isInStock
-                ? 'bg-white/95 text-black border-white font-semibold'
-                : 'bg-black/75 text-[#ececec] border-white/15'
+                ? 'bg-white text-black border-white font-semibold'
+                : 'bg-black/80 text-[#ececec] border-white/15'
             }`}
           >
             {isInStock ? 'В наличии' : 'Под заказ'}
           </span>
           {hasDiscount && discountPercent >= 1 && (
-            <span className="px-1.5 py-0.5 rounded-full bg-black/80 backdrop-blur-md border border-white/15 text-[9px] font-semibold text-white">
+            <span className="px-1.5 py-0.5 rounded-full bg-black/85 border border-white/15 text-[9px] font-semibold text-white">
               -{discountPercent}%
             </span>
           )}
@@ -96,7 +99,7 @@ export default function ProductCard({
           type="button"
           onClick={handleFavoriteClick}
           aria-label="В избранное"
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white hover:border-white transition-colors cursor-pointer"
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/75 border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white hover:border-white transition-colors cursor-pointer"
         >
           <Heart
             className={`w-3.5 h-3.5 transition-colors ${
@@ -107,7 +110,7 @@ export default function ProductCard({
 
         {/* Multi-photo Indicator */}
         {images.length > 1 && (
-          <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[9px] text-[#dddddd] inline-flex items-center gap-1">
+          <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded-full bg-black/80 border border-white/15 text-[9px] text-[#dddddd] inline-flex items-center gap-1">
             <Layers className="w-2.5 h-2.5" />
             <span>{images.length}</span>
           </span>
@@ -136,7 +139,7 @@ export default function ProductCard({
             type="button"
             onClick={handleQuickAdd}
             aria-label="Добавить в корзину"
-            className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center border transition-all cursor-pointer ${
+            className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center border transition-colors cursor-pointer ${
               justAdded
                 ? 'bg-white text-black border-white'
                 : 'bg-[#141416] border-[#2a2a2e] text-white hover:bg-white hover:text-black hover:border-white'
@@ -153,3 +156,5 @@ export default function ProductCard({
     </article>
   );
 }
+
+export default memo(ProductCard);

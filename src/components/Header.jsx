@@ -22,7 +22,7 @@ export default function Header({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-md border-b border-[#141414]">
+    <header className="sticky top-0 z-40 bg-[#050505] border-b border-[#141414]">
       <div className="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
         
         {/* Brand identity - Click to go Home */}
