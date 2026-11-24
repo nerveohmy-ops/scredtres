@@ -409,6 +409,55 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
+      case 'sync_products': {
+        const list = Array.isArray(payload?.products) ? payload.products : null;
+        if (!list || list.length === 0) {
+          return res.status(400).json({ ok: false, error: 'Missing products array' });
+        }
+        if (list.length > 100) {
+          return res.status(400).json({ ok: false, error: 'Batch too large (max 100 per request)' });
+        }
+
+        const validated = [];
+        const skipped = [];
+        for (const rawProduct of list) {
+          const check = validateProductPayload(rawProduct);
+          if (check.error) {
+            skipped.push({
+              id: String(rawProduct?.id || ''),
+              name: String(rawProduct?.name || '').slice(0, 60),
+              error: check.error
+            });
+            continue;
+          }
+          validated.push(check.value);
+        }
+
+        if (validated.length === 0) {
+          const firstErr = skipped[0]?.error || 'No valid products to sync';
+          return res.status(400).json({ ok: false, error: firstErr, skipped });
+        }
+
+        const CHUNK_SIZE = 80;
+        for (let i = 0; i < validated.length; i += CHUNK_SIZE) {
+          const stmts = validated.slice(i, i + CHUNK_SIZE).map((p) => buildProductStatement(p));
+          await db.batch(stmts, 'write');
+        }
+
+        await recordAuditLog(db, {
+          actor,
+          action: 'sync_products',
+          targetId: 'catalog',
+          details: { syncedCount: validated.length, skippedCount: skipped.length }
+        });
+        return res.status(200).json({
+          ok: true,
+          syncedCount: validated.length,
+          skippedCount: skipped.length,
+          skipped: skipped.slice(0, 10)
+        });
+      }
+
       case 'delete_product': {
         const idCheck = validateIdString(payload?.productId, 'productId');
         if (idCheck.error) {

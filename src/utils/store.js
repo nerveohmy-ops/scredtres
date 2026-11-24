@@ -41,6 +41,11 @@ export const saveJson = (key, value) => {
 export const store = {
   getProducts: () => loadJson(STORAGE_KEYS.PRODUCTS, []),
   saveProducts: (list) => saveJson(STORAGE_KEYS.PRODUCTS, list),
+  clearProducts: () => {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
+    } catch {}
+  },
 
   getInfoItems: () => loadJson(STORAGE_KEYS.INFO_ITEMS, []),
   saveInfoItems: (list) => saveJson(STORAGE_KEYS.INFO_ITEMS, list),

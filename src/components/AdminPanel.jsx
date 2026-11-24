@@ -68,6 +68,9 @@ export default function AdminPanel({
   isRefreshing = false,
   onRefreshCatalog,
   localUnsyncedCount = 0,
+  isSyncingLocal = false,
+  localSyncNotice = '',
+  onDismissLocalSyncNotice,
   onSyncLocalToTurso
 }) {
   const isOwner = canManageSettings(role);
@@ -447,23 +450,58 @@ export default function AdminPanel({
         </div>
       </div>
 
-      {dbConfigured && localUnsyncedCount > 0 && typeof onSyncLocalToTurso === 'function' && (
-        <div className="p-3.5 bg-[#080808] border border-[#2a2a2a] rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
-          <span className="text-[#cccccc]">
-            На этом устройстве сохранены локальные товары ({localUnsyncedCount} шт.) до включения БД.
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              haptic.medium();
-              onSyncLocalToTurso();
-            }}
-            className="px-4 py-2 rounded-full bg-white text-black font-semibold hover:bg-[#dddddd] cursor-pointer"
-          >
-            Перенести в Turso
-          </button>
-        </div>
-      )}
+      {dbConfigured &&
+        (localUnsyncedCount > 0 || localSyncNotice) &&
+        typeof onSyncLocalToTurso === 'function' && (
+          <div className="p-3.5 bg-[#080808] border border-[#2a2a2a] rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="space-y-1 min-w-0 flex-1">
+              {localUnsyncedCount > 0 && (
+                <p className="text-[#cccccc]">
+                  На этом устройстве сохранены локальные товары ({localUnsyncedCount} шт.) до включения БД.
+                </p>
+              )}
+              {localSyncNotice && (
+                <p
+                  className={
+                    localSyncNotice.startsWith('Ошибка')
+                      ? 'text-white font-medium'
+                      : 'text-[#aaaaaa]'
+                  }
+                >
+                  {localSyncNotice}
+                </p>
+              )}
+            </div>
+            {localUnsyncedCount > 0 ? (
+              <button
+                type="button"
+                disabled={isSyncingLocal}
+                onClick={() => {
+                  haptic.medium();
+                  onSyncLocalToTurso();
+                }}
+                className="px-4 py-2 rounded-full bg-white text-black font-semibold hover:bg-[#dddddd] cursor-pointer disabled:opacity-60 inline-flex items-center gap-1.5 shrink-0"
+              >
+                {isSyncingLocal && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isSyncingLocal ? 'Перенос...' : 'Перенести в Turso'}</span>
+              </button>
+            ) : (
+              typeof onDismissLocalSyncNotice === 'function' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic.light();
+                    onDismissLocalSyncNotice();
+                  }}
+                  className="p-1.5 rounded-full text-[#888888] hover:text-white cursor-pointer shrink-0"
+                  aria-label="Закрыть уведомление"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )
+            )}
+          </div>
+        )}
 
       {/* Section Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">

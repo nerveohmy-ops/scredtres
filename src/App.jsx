@@ -31,8 +31,25 @@ import Footer from './components/Footer';
 
 const CATALOG_PAGE_SIZE = 24;
 
+const sameProductSnapshot = (a, b) => {
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    (a.brand || '') === (b.brand || '') &&
+    a.category === b.category &&
+    (a.availability || 'pre_order') === (b.availability || 'pre_order') &&
+    Number(a.price) === Number(b.price) &&
+    (a.oldPrice ?? null) === (b.oldPrice ?? null) &&
+    (a.description || '') === (b.description || '') &&
+    JSON.stringify(a.sizes || []) === JSON.stringify(b.sizes || []) &&
+    JSON.stringify(a.images || []) === JSON.stringify(b.images || [])
+  );
+};
+
 export default function App() {
   // Persistent store states
+  const [localSavedProducts, setLocalSavedProducts] = useState(() => store.getProducts());
   const [products, setProducts] = useState(() => {
     const saved = store.getProducts();
     return saved.length > 0 ? saved : SEED_PRODUCTS;
@@ -56,8 +73,11 @@ export default function App() {
   );
   const [favorites, setFavorites] = useState(() => store.getFavorites());
   const [dbConfigured, setDbConfigured] = useState(false);
+  const [bootstrapDone, setBootstrapDone] = useState(false);
   const [dbError, setDbError] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncingLocal, setIsSyncingLocal] = useState(false);
+  const [localSyncNotice, setLocalSyncNotice] = useState('');
   const [hasPromosServer, setHasPromosServer] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [cartNotice, setCartNotice] = useState('');
@@ -102,6 +122,7 @@ export default function App() {
     setIsRefreshing(true);
     const data = await fetchCatalogBootstrap();
     setIsRefreshing(false);
+    setBootstrapDone(true);
 
     if (!data?.configured) return;
 
@@ -169,31 +190,33 @@ export default function App() {
     }
   }, [activeTab, role]);
 
-  // Persist changes to localStorage only when Turso server DB is not configured and catalog was mutated locally
+  // Persist changes to localStorage only after server check confirms Turso DB is not configured
   useEffect(() => {
     if (
+      bootstrapDone &&
       !dbConfigured &&
       (localStorage.getItem('scredtres_products_v2') !== null || products !== SEED_PRODUCTS)
     ) {
       store.saveProducts(products);
+      setLocalSavedProducts(products);
     }
-  }, [products, dbConfigured]);
+  }, [products, dbConfigured, bootstrapDone]);
 
   useEffect(() => {
-    if (!dbConfigured) store.saveInfoItems(infoItems);
-  }, [infoItems, dbConfigured]);
+    if (bootstrapDone && !dbConfigured) store.saveInfoItems(infoItems);
+  }, [infoItems, dbConfigured, bootstrapDone]);
 
   useEffect(() => {
-    if (!dbConfigured) store.saveOrders(orders);
-  }, [orders, dbConfigured]);
+    if (bootstrapDone && !dbConfigured) store.saveOrders(orders);
+  }, [orders, dbConfigured, bootstrapDone]);
 
   useEffect(() => {
-    if (!dbConfigured) store.savePromos(promos);
-  }, [promos, dbConfigured]);
+    if (bootstrapDone && !dbConfigured) store.savePromos(promos);
+  }, [promos, dbConfigured, bootstrapDone]);
 
   useEffect(() => {
-    if (!dbConfigured) store.saveSettings(settings);
-  }, [settings, dbConfigured]);
+    if (bootstrapDone && !dbConfigured) store.saveSettings(settings);
+  }, [settings, dbConfigured, bootstrapDone]);
 
   useEffect(() => {
     store.saveCart(cart);
@@ -434,23 +457,72 @@ export default function App() {
     }
   };
 
-  const localUnsyncedProducts = dbConfigured ? store.getProducts() : [];
+  const seedById = useMemo(() => new Map(SEED_PRODUCTS.map((p) => [p.id, p])), []);
+
+  const localUnsyncedProducts = useMemo(() => {
+    if (!dbConfigured || dbError || !Array.isArray(localSavedProducts) || localSavedProducts.length === 0) {
+      return [];
+    }
+    const serverById = new Map(products.map((p) => [p.id, p]));
+    return localSavedProducts.filter((lp) => {
+      if (!lp?.id || !lp?.name) return false;
+      const serverMatch = serverById.get(lp.id);
+      if (serverMatch && sameProductSnapshot(lp, serverMatch)) return false;
+      const seedMatch = seedById.get(lp.id);
+      if (seedMatch && sameProductSnapshot(lp, seedMatch)) return false;
+      return true;
+    });
+  }, [dbConfigured, dbError, localSavedProducts, products, seedById]);
+
+  useEffect(() => {
+    if (
+      dbConfigured &&
+      !dbError &&
+      !isSyncingLocal &&
+      Array.isArray(localSavedProducts) &&
+      localSavedProducts.length > 0 &&
+      localUnsyncedProducts.length === 0
+    ) {
+      store.clearProducts();
+      setLocalSavedProducts([]);
+    }
+  }, [dbConfigured, dbError, isSyncingLocal, localSavedProducts, localUnsyncedProducts.length]);
 
   const handleSyncLocalToTurso = async () => {
-    if (!dbConfigured || localUnsyncedProducts.length === 0) return;
+    if (!dbConfigured || isSyncingLocal || localUnsyncedProducts.length === 0) return;
+    setIsSyncingLocal(true);
+    setSyncError('');
+    setLocalSyncNotice('');
     try {
-      setSyncError('');
-      for (const p of localUnsyncedProducts) {
-        if (p?.id && p?.name) {
-          await sendAdminAction('save_product', p);
-        }
+      const BATCH_SIZE = 30;
+      let totalSynced = 0;
+      let totalSkipped = 0;
+      const queue = [...localUnsyncedProducts];
+
+      for (let i = 0; i < queue.length; i += BATCH_SIZE) {
+        const chunk = queue.slice(i, i + BATCH_SIZE);
+        setLocalSyncNotice(`Перенос ${Math.min(i + chunk.length, queue.length)} из ${queue.length}...`);
+        const res = await sendAdminAction('sync_products', { products: chunk });
+        totalSynced += Number(res?.syncedCount) || chunk.length;
+        totalSkipped += Number(res?.skippedCount) || 0;
       }
-      store.saveProducts([]);
+
+      store.clearProducts();
+      setLocalSavedProducts([]);
       await syncCatalogFromServer(true);
       haptic.success();
+      setLocalSyncNotice(
+        totalSkipped > 0
+          ? `Перенесено: ${totalSynced} шт. (пропущено некорректных: ${totalSkipped})`
+          : `Перенесено в Turso: ${totalSynced} шт.`
+      );
     } catch (err) {
       haptic.error();
-      setSyncError(err.message || 'Не удалось перенести локальные товары');
+      const message = err.message || 'Не удалось перенести локальные товары';
+      setSyncError(message);
+      setLocalSyncNotice(`Ошибка: ${message}`);
+    } finally {
+      setIsSyncingLocal(false);
     }
   };
 
@@ -779,6 +851,9 @@ export default function App() {
             isRefreshing={isRefreshing}
             onRefreshCatalog={() => syncCatalogFromServer(true)}
             localUnsyncedCount={localUnsyncedProducts.length}
+            isSyncingLocal={isSyncingLocal}
+            localSyncNotice={localSyncNotice}
+            onDismissLocalSyncNotice={() => setLocalSyncNotice('')}
             onSyncLocalToTurso={handleSyncLocalToTurso}
           />
         )}
