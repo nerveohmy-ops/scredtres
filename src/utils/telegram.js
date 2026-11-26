@@ -125,6 +125,91 @@ export const openTelegramLink = (url) => {
 
 export const openExternalLink = openTelegramLink;
 
+export const requestUserLocation = () =>
+  new Promise((resolve) => {
+    const fallbackBrowserGeo = () => {
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        resolve({
+          ok: false,
+          error: 'Геолокация не поддерживается на этом устройстве. Введите город вручную.'
+        });
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            ok: true,
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude
+          });
+        },
+        (err) => {
+          if (err?.code === 1) {
+            resolve({
+              ok: false,
+              denied: true,
+              error: 'Доступ к геолокации запрещён. Разрешите его в настройках или введите город вручную.'
+            });
+          } else {
+            resolve({
+              ok: false,
+              error: 'Не удалось определить геолокацию. Введите город в поиске выше.'
+            });
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    };
+
+    try {
+      const lm = tg?.LocationManager;
+      if (lm && typeof lm.init === 'function' && typeof lm.getLocation === 'function') {
+        let settled = false;
+        const done = (result) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+        };
+
+        const runGetLocation = () => {
+          if (lm.isLocationAvailable === false) {
+            fallbackBrowserGeo();
+            return;
+          }
+          lm.getLocation((loc) => {
+            if (loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
+              done({ ok: true, lat: loc.latitude, lon: loc.longitude });
+            } else if (lm.isAccessRequested && lm.isAccessGranted === false) {
+              done({
+                ok: false,
+                denied: true,
+                canOpenSettings: typeof lm.openSettings === 'function',
+                error: 'Доступ к геолокации отключён для этого мини-приложения в Telegram.'
+              });
+            } else {
+              fallbackBrowserGeo();
+            }
+          });
+        };
+
+        if (lm.isInited) {
+          runGetLocation();
+        } else {
+          lm.init(() => runGetLocation());
+        }
+        return;
+      }
+    } catch {}
+
+    fallbackBrowserGeo();
+  });
+
+export const openTelegramLocationSettings = () => {
+  try {
+    tg?.LocationManager?.openSettings?.();
+  } catch {}
+};
+
 export const submitOrderToServer = async (orderData) => {
   const initData = tg?.initData || '';
   try {

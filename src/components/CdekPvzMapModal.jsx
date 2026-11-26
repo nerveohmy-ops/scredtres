@@ -14,7 +14,11 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { fetchCdekPvz, reverseGeocodePvz } from '../utils/api';
-import { haptic } from '../utils/telegram';
+import {
+  haptic,
+  requestUserLocation,
+  openTelegramLocationSettings
+} from '../utils/telegram';
 
 function formatDistance(meters) {
   if (!Number.isFinite(meters)) return '';
@@ -58,6 +62,7 @@ export default function CdekPvzMapModal({
   const [locating, setLocating] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [canOpenGeoSettings, setCanOpenGeoSettings] = useState(false);
   const [mapMoved, setMapMoved] = useState(false);
 
   const mapContainerRef = useRef(null);
@@ -118,9 +123,8 @@ export default function CdekPvzMapModal({
         attributionControl: false
       });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd'
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
       }).addTo(map);
 
       L.control.zoom({ position: 'topright' }).addTo(map);
@@ -186,40 +190,27 @@ export default function CdekPvzMapModal({
     }
   }, [userCoords]);
 
-  const handleLocateMe = () => {
+  const handleLocateMe = async () => {
     if (locating) return;
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setErrorMsg('Геолокация не поддерживается на этом устройстве. Введите город вручную.');
-      haptic.error();
-      return;
-    }
-
     haptic.medium();
     setLocating(true);
     setErrorMsg('');
+    setCanOpenGeoSettings(false);
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false);
-        const coords = {
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude
-        };
-        setUserCoords(coords);
-        setViewMode('map');
-        loadPoints({ lat: coords.lat, lon: coords.lon, panToCenter: true });
-      },
-      (err) => {
-        setLocating(false);
-        haptic.error();
-        if (err?.code === 1) {
-          setErrorMsg('Доступ к геолокации запрещён. Разрешите его в настройках или введите город вручную.');
-        } else {
-          setErrorMsg('Не удалось определить геолокацию. Введите город в поиске выше.');
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
+    const res = await requestUserLocation();
+    setLocating(false);
+
+    if (res.ok && Number.isFinite(res.lat) && Number.isFinite(res.lon)) {
+      const coords = { lat: res.lat, lon: res.lon };
+      setUserCoords(coords);
+      setViewMode('map');
+      loadPoints({ lat: coords.lat, lon: coords.lon, panToCenter: true });
+      return;
+    }
+
+    haptic.error();
+    setErrorMsg(res.error || 'Не удалось определить геолокацию. Введите город в поиске выше.');
+    setCanOpenGeoSettings(Boolean(res.canOpenSettings));
   };
 
   const handleCitySearch = (e) => {
@@ -369,8 +360,20 @@ export default function CdekPvzMapModal({
           </div>
 
           {errorMsg && (
-            <div className="text-[11px] text-[#e5e5e5] bg-[#141414] border border-[#2c2c2c] rounded-xl px-3 py-2">
-              {errorMsg}
+            <div className="text-[11px] text-[#e5e5e5] bg-[#141414] border border-[#2c2c2c] rounded-xl px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+              <span>{errorMsg}</span>
+              {canOpenGeoSettings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic.light();
+                    openTelegramLocationSettings();
+                  }}
+                  className="px-3 py-1 rounded-full bg-white text-black font-semibold text-[10px] cursor-pointer shrink-0"
+                >
+                  Открыть настройки
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -380,7 +383,7 @@ export default function CdekPvzMapModal({
           {/* Keep Leaflet container mounted so state persists across map/list toggle */}
           <div
             ref={mapContainerRef}
-            className={`w-full h-full ${viewMode === 'map' ? 'block' : 'hidden'}`}
+            className={`w-full h-full scred-dark-map ${viewMode === 'map' ? 'block' : 'hidden'}`}
           />
 
           {/* Loading overlay */}
