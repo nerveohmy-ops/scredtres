@@ -24,7 +24,7 @@ export default function ProductModal({
   onAddToCart, 
   isFavorite, 
   onToggleFavorite,
-  supportUsername = 'broknboyzclub'
+  supportUsername = 'dybriansik'
 }) {
   const sizesList = product?.sizes && product.sizes.length > 0 ? product.sizes : ['ONE SIZE'];
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -83,7 +83,7 @@ export default function ProductModal({
   const currentImg = images[activeImageIndex];
   const isPreOrder = product.availability === 'pre_order';
   const categoryName = CATEGORIES.find((c) => c.id === product.category)?.name || product.category;
-  const supportHandle = (supportUsername || 'broknboyzclub').replace(/^@/, '').trim() || 'broknboyzclub';
+  const supportHandle = (supportUsername || 'dybriansik').replace(/^@/, '').trim() || 'dybriansik';
 
   const handleTouchStart = (e) => {
     touchStartXRef.current = e.touches?.[0]?.clientX ?? null;

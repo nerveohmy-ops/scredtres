@@ -89,7 +89,7 @@ export default function App() {
   const role = resolveUserRole(tgUser, devRoleOverride, serverRole);
   const isStaff = canManageProducts(role);
   const isBrowserGuest = dbConfigured && !tg?.initData && !isLocalDevEnvironment();
-  const supportUsername = (settings?.supportUsername || 'broknboyzclub').replace(/^@/, '');
+  const supportUsername = (settings?.supportUsername || 'dybriansik').replace(/^@/, '');
 
   // Navigation & Filters
   const [activeTab, setActiveTab] = useState('catalog');

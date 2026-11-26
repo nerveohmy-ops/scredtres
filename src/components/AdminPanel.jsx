@@ -98,13 +98,13 @@ export default function AdminPanel({
   // Settings local form
   const [freeShipInput, setFreeShipInput] = useState(String(settings.freeShippingThreshold ?? 15000));
   const [shipCostInput, setShipCostInput] = useState(String(settings.standardShippingCost ?? 490));
-  const [supportUserInput, setSupportUserInput] = useState(settings.supportUsername || 'broknboyzclub');
+  const [supportUserInput, setSupportUserInput] = useState(settings.supportUsername || 'dybriansik');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   useEffect(() => {
     setFreeShipInput(String(settings.freeShippingThreshold ?? 15000));
     setShipCostInput(String(settings.standardShippingCost ?? 490));
-    setSupportUserInput(settings.supportUsername || 'broknboyzclub');
+    setSupportUserInput(settings.supportUsername || 'dybriansik');
   }, [settings.freeShippingThreshold, settings.standardShippingCost, settings.supportUsername]);
 
   // Tracking input cache & order filters
@@ -357,7 +357,7 @@ export default function AdminPanel({
       ...settings,
       freeShippingThreshold: Math.max(0, Number(freeShipInput) || 0),
       standardShippingCost: Math.max(0, Number(shipCostInput) || 0),
-      supportUsername: supportUserInput.replace(/^@/, '').trim() || 'broknboyzclub'
+      supportUsername: supportUserInput.replace(/^@/, '').trim() || 'dybriansik'
     });
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 1800);
@@ -411,7 +411,7 @@ export default function AdminPanel({
           </h2>
           <p className="text-xs text-[#777777] mt-0.5">
             {isOwner
-              ? 'Полный доступ · @broknboyzclub'
+              ? 'Полный доступ · @dybriansik'
               : 'Управление каталогом, заказами, инфо и просмотр промокодов'}
           </p>
         </div>
@@ -947,7 +947,7 @@ export default function AdminPanel({
 
           {infoItems.length === 0 ? (
             <div className="p-8 text-center border border-[#161616] rounded-2xl text-xs text-[#777777]">
-              Список пуст. Поддержка приложения и владелец (@broknboyzclub) могут добавлять сюда актуальную информацию о заказах, сроках и доставке.
+              Список пуст. Поддержка приложения и владелец (@dybriansik) могут добавлять сюда актуальную информацию о заказах, сроках и доставке.
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -1214,7 +1214,7 @@ export default function AdminPanel({
                         Оплата:{' '}
                         <span className="text-white">
                           {order.delivery?.method === 'pickup_blg'
-                            ? 'Обговор с владельцем (@broknboyzclub)'
+                            ? 'Обговор с владельцем (@dybriansik)'
                             : getPaymentMethodLabel(order.paymentMethod)}
                         </span>
                       </div>
@@ -1363,7 +1363,7 @@ export default function AdminPanel({
                 <p className="text-[11px] text-[#777777] mt-0.5">
                   {isOwner
                     ? 'Скрыты от покупателей — список виден только владельцу и поддержке. Покупатель может лишь ввести код в корзине.'
-                    : 'Скрыты от покупателей. Просмотр доступен поддержке; добавлять и удалять коды может только владелец (@broknboyzclub).'}
+                    : 'Скрыты от покупателей. Просмотр доступен поддержке; добавлять и удалять коды может только владелец (@dybriansik).'}
                 </p>
               </div>
             </div>

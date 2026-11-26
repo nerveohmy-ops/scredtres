@@ -64,15 +64,15 @@ export default async function handler(req, res) {
     // 1. When user sends /start
     if (msg.text && msg.text.startsWith('/start')) {
       let roleLine = '';
-      if (username === 'broknboyzclub') {
-        roleLine = '\n\n👑 Вы вошли как владелец (@broknboyzclub) — панель управления открыта внутри магазина.';
+      if (username === 'dybriansik') {
+        roleLine = '\n\n👑 Вы вошли как владелец (@dybriansik) — панель управления открыта внутри магазина.';
       }
 
       const welcomeText =
         '<b>SCREDTRES</b>\n\n' +
         'Магазин одежды и обуви в наличии и под заказ из Китая.\n\n' +
         '• Позиции в наличии и под заказ\n' +
-        '• По вопросам и заказам: @broknboyzclub' +
+        '• По вопросам и заказам: @dybriansik' +
         roleLine +
         '\n\nНажмите кнопку ниже, чтобы открыть каталог:';
 
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
             `Сумма: ${safeTotal} ₽\n` +
             `Доставка: СДЭК ПВЗ — ${safeCity}, ${safeAddress}` +
             (safeComment ? `\nКомментарий: ${safeComment}` : '') +
-            `\n\nСвязь с владельцем: @broknboyzclub`,
+            `\n\nСвязь с владельцем: @dybriansik`,
           parse_mode: 'HTML'
         })
       });

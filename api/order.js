@@ -228,13 +228,13 @@ export default async function handler(req, res) {
     };
 
     let configured = false;
-    let supportHandle = 'broknboyzclub';
+    let supportHandle = 'dybriansik';
 
     if (tursoConfigured) {
       configured = true;
       const db = await getTursoDb();
       const settings = await readSettings(db);
-      supportHandle = (settings.supportUsername || 'broknboyzclub').trim().replace(/^@+/, '');
+      supportHandle = (settings.supportUsername || 'dybriansik').trim().replace(/^@+/, '');
 
       const productIds = Array.from(new Set(normalizedInputItems.map((i) => i.id)));
       const dbProducts = new Map();
@@ -322,7 +322,7 @@ export default async function handler(req, res) {
       DELIVERY_METHOD_LABELS[finalOrder.delivery?.method] || 'СДЭК ПВЗ';
     const paymentLabel =
       finalOrder.delivery?.method === 'pickup_blg'
-        ? 'Обговор с владельцем (@broknboyzclub)'
+        ? 'Обговор с владельцем (@dybriansik)'
         : PAYMENT_METHOD_LABELS[finalOrder.paymentMethod] || 'СБП / Карта РФ';
     const deliveryText =
       finalOrder.delivery?.method === 'pickup_blg'

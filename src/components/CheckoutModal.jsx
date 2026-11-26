@@ -15,21 +15,21 @@ import {
   getPaymentMethodLabel
 } from '../data/products';
 
-const OWNER_HANDLE = 'broknboyzclub';
+const OWNER_HANDLE = 'dybriansik';
 const NAME_PART_RE = /^[a-zA-Zа-яА-ЯёЁ-]{2,40}$/;
 
 export default function CheckoutModal({ 
   isOpen, 
   onClose, 
   orderSummary, 
-  supportUsername = 'broknboyzclub',
+  supportUsername = 'dybriansik',
   dbConfigured = false,
   isBrowserGuest = false,
   devRoleOverride,
   onOrderSuccess 
 }) {
   const tgUser = getTelegramUser(devRoleOverride);
-  const supportHandle = (supportUsername || 'broknboyzclub').replace(/^@/, '');
+  const supportHandle = (supportUsername || 'dybriansik').replace(/^@/, '');
 
   const [lastName, setLastName] = useState(tgUser.last_name || '');
   const [firstName, setFirstName] = useState(tgUser.first_name || '');

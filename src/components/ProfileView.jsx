@@ -32,7 +32,7 @@ export default function ProfileView({
   const [openInfoId, setOpenInfoId] = useState(null);
   const isDevLocal = isLocalDevEnvironment();
   const isStaff = canManageInfo(role);
-  const supportUsername = (settings?.supportUsername || 'broknboyzclub').replace(/^@/, '');
+  const supportUsername = (settings?.supportUsername || 'dybriansik').replace(/^@/, '');
 
   const getOrderStatusLabel = (statusId) => {
     return ORDER_STATUSES.find((s) => s.id === statusId)?.name || 'Новый заказ';
@@ -139,7 +139,7 @@ export default function ProfileView({
                         Оплата:{' '}
                         <span className="text-[#cccccc]">
                           {order.delivery?.method === 'pickup_blg'
-                            ? 'Обговор с владельцем (@broknboyzclub)'
+                            ? 'Обговор с владельцем (@dybriansik)'
                             : getPaymentMethodLabel(order.paymentMethod)}
                         </span>
                       </div>
@@ -211,7 +211,7 @@ export default function ProfileView({
         <SocialLinks variant="grid" />
       </section>
 
-      {/* Dynamic Info Blocks managed by Support & Owner (@broknboyzclub) */}
+      {/* Dynamic Info Blocks managed by Support & Owner (@dybriansik) */}
       {(infoItems.length > 0 || isStaff) && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -291,7 +291,7 @@ export default function ProfileView({
             {[
               { id: null, label: 'Покупатель' },
               { id: ROLES.SUPPORT, label: 'Поддержка приложения' },
-              { id: ROLES.ADMIN, label: '@broknboyzclub (Владелец)' }
+              { id: ROLES.ADMIN, label: '@dybriansik (Владелец)' }
             ].map((opt) => {
               const active = devRoleOverride === opt.id;
               return (

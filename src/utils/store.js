@@ -13,8 +13,8 @@ const STORAGE_KEYS = {
 export const DEFAULT_SETTINGS = {
   freeShippingThreshold: 15000,
   standardShippingCost: 490,
-  supportUsername: 'broknboyzclub',
-  ownerUsername: 'broknboyzclub',
+  supportUsername: 'dybriansik',
+  ownerUsername: 'dybriansik',
   chinaDeliveryNote: 'Одежда и обувь в наличии и под заказ из Китая'
 };
 
