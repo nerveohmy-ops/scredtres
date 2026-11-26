@@ -8,9 +8,10 @@ import {
   Play,
   ArrowLeft,
   MessageSquareQuote,
-  Camera
+  Camera,
+  RefreshCw
 } from 'lucide-react';
-import { REVIEWS, REVIEWS_CHANNEL_URL } from '../data/reviews';
+import { REVIEWS_CHANNEL_URL } from '../data/reviews';
 import { haptic, openTelegramLink } from '../utils/telegram';
 import { fetchLiveReviews } from '../utils/api';
 
@@ -84,32 +85,29 @@ export default function ReviewsView({ onGoToCatalog }) {
   const [filter, setFilter] = useState('all'); // 'all' | 'with_photo'
   const [lightbox, setLightbox] = useState(null); // { review, index }
   const [liveReviews, setLiveReviews] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
+  const loadReviews = useCallback(async (signal) => {
+    setIsLoading(true);
+    setLoadError(false);
+    const res = await fetchLiveReviews(signal);
+    if (signal?.aborted) return;
+    if (res.ok && Array.isArray(res.reviews)) {
+      setLiveReviews(res.reviews);
+    } else {
+      setLoadError(true);
+    }
+    setIsLoading(false);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchLiveReviews(controller.signal).then((res) => {
-      if (res.ok && Array.isArray(res.reviews) && res.reviews.length > 0) {
-        setLiveReviews(res.reviews);
-      }
-    });
+    loadReviews(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadReviews]);
 
-  const allReviews = useMemo(() => {
-    if (liveReviews.length === 0) return REVIEWS;
-    const knownPostIds = new Set();
-    for (const r of REVIEWS) {
-      if (r.postId) knownPostIds.add(Number(r.postId));
-      if (Array.isArray(r.postIds)) {
-        for (const id of r.postIds) knownPostIds.add(Number(id));
-      }
-    }
-    const newer = liveReviews.filter((r) => {
-      const ids = Array.isArray(r.postIds) && r.postIds.length ? r.postIds : [r.postId];
-      return ids.some((id) => !knownPostIds.has(Number(id)));
-    });
-    return newer.length > 0 ? [...newer, ...REVIEWS] : REVIEWS;
-  }, [liveReviews]);
+  const allReviews = liveReviews;
 
   const stats = useMemo(() => {
     const totalReviews = allReviews.length;
@@ -184,14 +182,29 @@ export default function ReviewsView({ onGoToCatalog }) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => handleOpenTelegram(REVIEWS_CHANNEL_URL)}
-          className="self-start sm:self-auto px-5 py-2.5 rounded-full bg-white text-black hover:bg-[#dddddd] text-xs font-semibold tracking-wider uppercase flex items-center gap-2 transition-colors cursor-pointer shadow-sm shrink-0"
-        >
-          <span>Канал @reviewscred</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={() => {
+              haptic.light();
+              loadReviews();
+            }}
+            className="px-3.5 py-2.5 rounded-full border border-[#222222] hover:border-white text-xs text-[#aaaaaa] hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+            aria-label="Обновить отзывы"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Обновить</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpenTelegram(REVIEWS_CHANNEL_URL)}
+            className="px-5 py-2.5 rounded-full bg-white text-black hover:bg-[#dddddd] text-xs font-semibold tracking-wider uppercase flex items-center gap-2 transition-colors cursor-pointer shadow-sm"
+          >
+            <span>Канал @reviewscred</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Quick Filters */}
@@ -228,9 +241,55 @@ export default function ReviewsView({ onGoToCatalog }) {
       </div>
 
       {/* Reviews Grid */}
-      {filteredReviews.length === 0 ? (
+      {isLoading && allReviews.length === 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="bg-[#080808] border border-[#181818] rounded-2xl p-5 space-y-3 animate-pulse"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#151515]" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3 w-28 bg-[#181818] rounded" />
+                  <div className="h-2.5 w-20 bg-[#121212] rounded" />
+                </div>
+              </div>
+              <div className="h-3 w-full bg-[#141414] rounded" />
+              <div className="h-3 w-3/4 bg-[#141414] rounded" />
+            </div>
+          ))}
+        </div>
+      ) : loadError && allReviews.length === 0 ? (
+        <div className="py-12 px-4 text-center bg-[#080808] border border-[#161616] rounded-2xl space-y-3">
+          <p className="text-xs text-[#999999]">
+            Не удалось загрузить отзывы из канала @reviewscred.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                haptic.light();
+                loadReviews();
+              }}
+              className="px-4 py-2 rounded-full bg-white text-black text-xs font-semibold cursor-pointer"
+            >
+              Повторить
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenTelegram(REVIEWS_CHANNEL_URL)}
+              className="px-4 py-2 rounded-full border border-[#2a2a2a] hover:border-white text-xs text-white cursor-pointer"
+            >
+              Открыть @reviewscred
+            </button>
+          </div>
+        </div>
+      ) : filteredReviews.length === 0 ? (
         <div className="py-16 text-center bg-[#080808] border border-[#161616] rounded-2xl text-xs text-[#777777]">
-          Отзывы по выбранному фильтру отсутствуют.
+          {allReviews.length === 0
+            ? 'Отзывы пока не загружены.'
+            : 'Отзывы по выбранному фильтру отсутствуют.'}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">

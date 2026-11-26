@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowDown } from 'lucide-react';
-import logoImg from '../assets/logo.jpg';
+import logoImg from '../assets/logo.png';
 import { haptic } from '../utils/telegram';
 
 export default function HeroBanner({ onExploreCatalog }) {
@@ -14,7 +14,7 @@ export default function HeroBanner({ onExploreCatalog }) {
         <img
           src={logoImg}
           alt=""
-          className="w-[320px] sm:w-[440px] max-w-none h-auto object-contain grayscale contrast-125 opacity-25 scale-105"
+          className="w-[300px] sm:w-[420px] max-w-[85vw] h-auto object-contain opacity-25"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-black/85" />
         <div

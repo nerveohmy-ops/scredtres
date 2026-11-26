@@ -64,7 +64,7 @@ export default function SearchBar({
               autoFocus
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Название, бренд (Poizon, Balenciaga, Nike...)"
+              placeholder="Название, бренд (Rick Owens, Balenciaga, Nike...)"
               className="w-full bg-black border border-[#222222] focus:border-white text-white text-xs pl-10 pr-10 py-3 rounded-full outline-none placeholder-[#555555] transition-colors"
             />
             {searchQuery && (

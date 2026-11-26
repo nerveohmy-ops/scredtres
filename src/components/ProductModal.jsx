@@ -24,7 +24,7 @@ export default function ProductModal({
   onAddToCart, 
   isFavorite, 
   onToggleFavorite,
-  supportUsername = 'dybriansik'
+  supportUsername = 'broknboyzclub'
 }) {
   const sizesList = product?.sizes && product.sizes.length > 0 ? product.sizes : ['ONE SIZE'];
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -83,7 +83,7 @@ export default function ProductModal({
   const currentImg = images[activeImageIndex];
   const isPreOrder = product.availability === 'pre_order';
   const categoryName = CATEGORIES.find((c) => c.id === product.category)?.name || product.category;
-  const supportHandle = (supportUsername || 'dybriansik').replace(/^@/, '').trim() || 'dybriansik';
+  const supportHandle = (supportUsername || 'broknboyzclub').replace(/^@/, '').trim() || 'broknboyzclub';
 
   const handleTouchStart = (e) => {
     touchStartXRef.current = e.touches?.[0]?.clientX ?? null;
@@ -330,7 +330,7 @@ export default function ProductModal({
                   Справка по размерам (Китай / EU)
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Китайские и азиатские размеры могут маломерить на 0.5–1 размер. Если сомневаетесь в выборе — напишите владельцу <span className="text-white">@{supportHandle}</span>, сверим замеры по сетке Poizon перед выкупом.
+                  Китайские и азиатские размеры могут маломерить на 0.5–1 размер. Если сомневаетесь в выборе — напишите владельцу <span className="text-white">@{supportHandle}</span>, поможем подобрать точный размер перед заказом.
                 </p>
               </div>
             )}

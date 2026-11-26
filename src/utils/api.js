@@ -89,3 +89,27 @@ export async function fetchLiveReviews(signal) {
   } catch {}
   return { ok: false, reviews: [] };
 }
+
+export async function fetchAddressSuggestions({ mode = 'address', q = '', city = '', signal } = {}) {
+  const cleanQ = String(q || '').trim();
+  if (cleanQ.length < 2) return { ok: true, suggestions: [] };
+  try {
+    const params = new URLSearchParams({ mode, q: cleanQ });
+    if (city) params.set('city', String(city).trim());
+    const res = await fetch(`/api/address?${params.toString()}`, {
+      method: 'GET',
+      signal
+    });
+    const data = await parseJsonSafe(res);
+    if (res.ok && data) {
+      return {
+        ok: Boolean(data.ok),
+        serviceUnavailable: Boolean(data.serviceUnavailable),
+        suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
+      };
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return { ok: false, aborted: true, suggestions: [] };
+  }
+  return { ok: false, serviceUnavailable: true, suggestions: [] };
+}

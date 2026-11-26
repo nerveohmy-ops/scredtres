@@ -1,5 +1,5 @@
 import React from 'react';
-import logoImg from '../assets/logo.jpg';
+import logoImg from '../assets/logo.png';
 import { haptic } from '../utils/telegram';
 import SocialLinks from './SocialLinks';
 
@@ -18,9 +18,9 @@ export default function Footer({ onGoHome }) {
       <div className="max-w-md mx-auto space-y-3">
         <div 
           onClick={handleClick}
-          className="w-10 h-10 mx-auto overflow-hidden bg-black border border-[#222222] p-0.5 rounded-full cursor-pointer hover:border-white transition-colors"
+          className="inline-flex items-center justify-center mx-auto cursor-pointer hover:opacity-80 transition-opacity"
         >
-          <img src={logoImg} alt="SCRED" className="w-full h-full object-cover grayscale contrast-125 rounded-full" />
+          <img src={logoImg} alt="SCRED" className="h-9 w-auto object-contain select-none" />
         </div>
 
         <div className="space-y-0.5 cursor-pointer" onClick={handleClick}>
@@ -28,7 +28,7 @@ export default function Footer({ onGoHome }) {
             SCREDTRES
           </h4>
           <p className="text-[11px] text-[#777777]">
-            Выкуп и доставка оригинальной одежды из Китая
+            Одежда и обувь · в наличии и под заказ из Китая
           </p>
         </div>
 

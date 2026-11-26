@@ -1,6 +1,6 @@
 import React from 'react';
 import { Search, ShoppingBag, Heart } from 'lucide-react';
-import logoImg from '../assets/logo.jpg';
+import logoImg from '../assets/logo.png';
 import { haptic } from '../utils/telegram';
 
 export default function Header({ 
@@ -33,13 +33,11 @@ export default function Header({
           tabIndex={0}
           aria-label="Перейти на главный экран"
         >
-          <div className="w-9 h-9 rounded-full overflow-hidden bg-black border border-[#222222] p-0.5 flex items-center justify-center group-hover:border-white transition-colors duration-300">
-            <img 
-              src={logoImg} 
-              alt="SCREDTRES" 
-              className="w-full h-full object-cover grayscale contrast-125 rounded-full"
-            />
-          </div>
+          <img 
+            src={logoImg} 
+            alt="SCREDTRES" 
+            className="h-7 w-auto object-contain select-none"
+          />
           <span className="text-base font-black tracking-[0.2em] text-white leading-none font-cinzel group-hover:text-[#eeeeee] transition-colors">
             SCREDTRES
           </span>

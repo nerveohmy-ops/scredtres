@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { X, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Check, AlertCircle, MapPin, Loader2 } from 'lucide-react';
 import { getTelegramUser, submitOrderToServer, openTelegramLink, haptic } from '../utils/telegram';
+import { fetchAddressSuggestions } from '../utils/api';
 import {
   formatPrice,
   PHONE_MAX_LENGTH,
@@ -14,43 +15,128 @@ import {
   getPaymentMethodLabel
 } from '../data/products';
 
-const OWNER_HANDLE = 'dybriansik';
+const OWNER_HANDLE = 'broknboyzclub';
+const NAME_PART_RE = /^[a-zA-Zа-яА-ЯёЁ-]{2,40}$/;
 
 export default function CheckoutModal({ 
   isOpen, 
   onClose, 
   orderSummary, 
-  supportUsername = 'dybriansik',
+  supportUsername = 'broknboyzclub',
   dbConfigured = false,
   isBrowserGuest = false,
   devRoleOverride,
   onOrderSuccess 
 }) {
   const tgUser = getTelegramUser(devRoleOverride);
-  const supportHandle = (supportUsername || 'dybriansik').replace(/^@/, '');
+  const supportHandle = (supportUsername || 'broknboyzclub').replace(/^@/, '');
 
-  const [fullName, setFullName] = useState(
-    [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || ''
-  );
+  const [lastName, setLastName] = useState(tgUser.last_name || '');
+  const [firstName, setFirstName] = useState(tgUser.first_name || '');
+  const [middleName, setMiddleName] = useState('');
   const [phone, setPhone] = useState('+7 ');
   const [telegramUsername, setTelegramUsername] = useState(
     tgUser.username ? `@${tgUser.username}` : ''
   );
   const [deliveryMethod, setDeliveryMethod] = useState('cdek_pvz');
   const [city, setCity] = useState('Москва');
+  const [cityVerified, setCityVerified] = useState(true);
+  const [citySuggestions, setCitySuggestions] = useState([]);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [cityOpen, setCityOpen] = useState(false);
+
   const [address, setAddress] = useState('');
+  const [addressVerified, setAddressVerified] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressOpen, setAddressOpen] = useState(false);
+
   const [paymentMethod, setPaymentMethod] = useState('sbp_card');
   const [comment, setComment] = useState('');
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderComplete, setOrderComplete] = useState(null);
 
+  const cityTimerRef = useRef(null);
+  const addrTimerRef = useRef(null);
+
   useEffect(() => {
     if (!isOpen) {
       setOrderComplete(null);
       setFormError('');
+      setCityOpen(false);
+      setAddressOpen(false);
     }
   }, [isOpen]);
+
+  // Debounced live city autocomplete
+  useEffect(() => {
+    if (!isOpen || deliveryMethod === 'pickup_blg' || cityVerified) {
+      setCitySuggestions([]);
+      setCityLoading(false);
+      return;
+    }
+    const q = city.trim();
+    if (q.length < 2) {
+      setCitySuggestions([]);
+      setCityLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setCityLoading(true);
+    cityTimerRef.current = setTimeout(async () => {
+      const res = await fetchAddressSuggestions({ mode: 'city', q, signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setCityLoading(false);
+      if (res.ok) {
+        setCitySuggestions(res.suggestions);
+        setCityOpen(true);
+      } else {
+        setCitySuggestions([]);
+      }
+    }, 320);
+    return () => {
+      clearTimeout(cityTimerRef.current);
+      controller.abort();
+    };
+  }, [city, cityVerified, deliveryMethod, isOpen]);
+
+  // Debounced live address autocomplete scoped to selected city
+  useEffect(() => {
+    if (!isOpen || deliveryMethod === 'pickup_blg' || addressVerified) {
+      setAddressSuggestions([]);
+      setAddressLoading(false);
+      return;
+    }
+    const q = address.trim();
+    if (q.length < 3 || city.trim().length < 2) {
+      setAddressSuggestions([]);
+      setAddressLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setAddressLoading(true);
+    addrTimerRef.current = setTimeout(async () => {
+      const res = await fetchAddressSuggestions({
+        mode: 'address',
+        q,
+        city: city.trim(),
+        signal: controller.signal
+      });
+      if (controller.signal.aborted) return;
+      setAddressLoading(false);
+      if (res.ok) {
+        setAddressSuggestions(res.suggestions);
+        setAddressOpen(true);
+      } else {
+        setAddressSuggestions([]);
+      }
+    }, 350);
+    return () => {
+      clearTimeout(addrTimerRef.current);
+      controller.abort();
+    };
+  }, [address, addressVerified, city, deliveryMethod, isOpen]);
 
   if (!isOpen || !orderSummary) return null;
 
@@ -98,14 +184,17 @@ export default function CheckoutModal({
     setFormError('');
 
     const tgFullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim();
-    const cleanName = fullName.trim();
+    const cleanLast = lastName.trim();
+    const cleanFirst = firstName.trim();
+    const cleanMiddle = middleName.trim();
+    const cleanName = [cleanLast, cleanFirst, cleanMiddle].filter(Boolean).join(' ');
     const phoneDigits = getRuPhoneDigits(phone);
-    const cleanCity = city.trim();
-    const cleanAddress = address.trim();
+    let cleanCity = city.trim();
+    let cleanAddress = address.trim();
 
     if (!isPickupBlg) {
-      if (!cleanName || cleanName.length < 2) {
-        setFormError('Укажите корректные имя и фамилию получателя.');
+      if (!NAME_PART_RE.test(cleanLast) || !NAME_PART_RE.test(cleanFirst) || !NAME_PART_RE.test(cleanMiddle)) {
+        setFormError('Для СДЭК укажите полностью Фамилию, Имя и Отчество (только буквы).');
         haptic.error();
         return;
       }
@@ -116,8 +205,14 @@ export default function CheckoutModal({
         return;
       }
 
-      if (!cleanCity || !cleanAddress) {
-        setFormError('Укажите город и адрес ПВЗ СДЭК.');
+      if (cleanCity.length < 2 || !/[a-zа-яё]/i.test(cleanCity)) {
+        setFormError('Укажите корректный город доставки.');
+        haptic.error();
+        return;
+      }
+
+      if (cleanAddress.length < 4 || !/[a-zа-яё]/i.test(cleanAddress) || !/\d/.test(cleanAddress)) {
+        setFormError('Укажите полный адрес ПВЗ СДЭК (улица и номер дома).');
         haptic.error();
         return;
       }
@@ -125,6 +220,50 @@ export default function CheckoutModal({
 
     setIsSubmitting(true);
     haptic.heavy();
+
+    // Live verify city & address via /api/address if user typed manually without picking a suggestion
+    if (!isPickupBlg && (!cityVerified || !addressVerified)) {
+      if (!cityVerified) {
+        const cityCheck = await fetchAddressSuggestions({ mode: 'city', q: cleanCity });
+        if (cityCheck.ok) {
+          if (cityCheck.suggestions.length === 0) {
+            setIsSubmitting(false);
+            setFormError('Город не найден. Выберите существующий город из подсказок.');
+            haptic.error();
+            return;
+          }
+          cleanCity = cityCheck.suggestions[0].value;
+          setCity(cleanCity);
+          setCityVerified(true);
+        }
+      }
+
+      if (!addressVerified) {
+        const addrCheck = await fetchAddressSuggestions({
+          mode: 'address',
+          q: cleanAddress,
+          city: cleanCity
+        });
+        if (addrCheck.ok) {
+          if (addrCheck.suggestions.length === 0) {
+            setIsSubmitting(false);
+            setFormError('Адрес не найден в этом городе. Выберите реальный адрес из списка подсказок.');
+            haptic.error();
+            return;
+          }
+          const matched = addrCheck.suggestions.find((s) => s.hasHouse) || addrCheck.suggestions[0];
+          if (!matched.hasHouse && !/\d/.test(cleanAddress)) {
+            setIsSubmitting(false);
+            setFormError('Уточните номер дома и выберите адрес из подсказок.');
+            haptic.error();
+            return;
+          }
+          cleanAddress = matched.hasHouse ? matched.value : cleanAddress;
+          setAddress(cleanAddress);
+          setAddressVerified(true);
+        }
+      }
+    }
 
     const orderId = `SCRED-${Math.floor(100000 + Math.random() * 900000)}`;
     const timestamp = new Date().toISOString();
@@ -166,7 +305,8 @@ export default function CheckoutModal({
         size: i.size,
         availability: i.product.availability || 'in_stock',
         price: i.product.price,
-        quantity: i.quantity
+        quantity: i.quantity,
+        image: i.product.images?.[0] || ''
       })),
       pricing: {
         subtotal: orderSummary.subtotal,
@@ -405,22 +545,51 @@ export default function CheckoutModal({
                   {/* Recipient */}
                   <div className="space-y-3 pt-2 border-t border-[#141414]">
                     <span className="text-[#888888] uppercase tracking-wider block font-medium">
-                      Получатель
+                      Получатель (ФИО для СДЭК)
                     </span>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <div>
-                        <label className="block text-[11px] text-[#666666] mb-1">Имя и фамилия *</label>
+                        <label className="block text-[11px] text-[#666666] mb-1">Фамилия *</label>
                         <input
                           type="text"
                           required
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          placeholder="Иван Иванов"
+                          autoComplete="family-name"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          placeholder="Иванов"
                           className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
                         />
                       </div>
 
+                      <div>
+                        <label className="block text-[11px] text-[#666666] mb-1">Имя *</label>
+                        <input
+                          type="text"
+                          required
+                          autoComplete="given-name"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          placeholder="Иван"
+                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] text-[#666666] mb-1">Отчество *</label>
+                        <input
+                          type="text"
+                          required
+                          autoComplete="additional-name"
+                          value={middleName}
+                          onChange={(e) => setMiddleName(e.target.value)}
+                          placeholder="Иванович"
+                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] text-[#666666] mb-1">Телефон *</label>
                         <input
@@ -436,53 +605,144 @@ export default function CheckoutModal({
                           className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
                         />
                       </div>
-                    </div>
 
-                    <div>
-                      <label className="block text-[11px] text-[#666666] mb-1">Telegram логин</label>
-                      <input
-                        type="text"
-                        value={telegramUsername}
-                        onChange={(e) => setTelegramUsername(e.target.value)}
-                        placeholder="@username"
-                        className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                      />
+                      <div>
+                        <label className="block text-[11px] text-[#666666] mb-1">Telegram логин</label>
+                        <input
+                          type="text"
+                          value={telegramUsername}
+                          onChange={(e) => setTelegramUsername(e.target.value)}
+                          placeholder="@username"
+                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  {/* СДЭК address */}
+                  {/* СДЭК address with live autocomplete & verification */}
                   <div className="space-y-3 pt-2 border-t border-[#141414]">
-                    <span className="text-[#888888] uppercase tracking-wider block font-medium">
-                      Адрес СДЭК
-                    </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[#888888] uppercase tracking-wider block font-medium">
+                        Адрес СДЭК
+                      </span>
+                      {cityVerified && addressVerified && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-white bg-[#141414] border border-[#2a2a2a] px-2 py-0.5 rounded-full">
+                          <Check className="w-3 h-3" />
+                          <span>Адрес подтверждён</span>
+                        </span>
+                      )}
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-[#666666] mb-1">Город *</label>
-                        <input
-                          type="text"
-                          required
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          placeholder="Москва"
-                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                        />
+                      {/* City with live suggestions */}
+                      <div className="relative">
+                        <label className="flex items-center justify-between text-[11px] text-[#666666] mb-1">
+                          <span>Город *</span>
+                          {cityVerified && <Check className="w-3 h-3 text-white" />}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required
+                            value={city}
+                            onFocus={() => {
+                              if (citySuggestions.length > 0) setCityOpen(true);
+                            }}
+                            onBlur={() => setTimeout(() => setCityOpen(false), 160)}
+                            onChange={(e) => {
+                              setCity(e.target.value);
+                              setCityVerified(false);
+                              setAddressVerified(false);
+                            }}
+                            placeholder="Москва"
+                            className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none pr-8"
+                          />
+                          {cityLoading && (
+                            <Loader2 className="w-3.5 h-3.5 text-[#777777] animate-spin absolute right-2.5 top-1/2 -translate-y-1/2" />
+                          )}
+                        </div>
+                        {cityOpen && citySuggestions.length > 0 && (
+                          <div className="absolute left-0 right-0 mt-1 z-30 bg-[#0d0d0d] border border-[#2a2a2a] rounded-xl overflow-hidden shadow-2xl max-h-44 overflow-y-auto">
+                            {citySuggestions.map((s) => (
+                              <button
+                                key={s.label}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  haptic.select();
+                                  setCity(s.value);
+                                  setCityVerified(true);
+                                  setAddressVerified(false);
+                                  setCityOpen(false);
+                                  setFormError('');
+                                }}
+                                className="w-full px-3 py-2 text-left text-[11px] text-[#dddddd] hover:bg-[#1a1a1a] hover:text-white flex items-center gap-2 border-b border-[#181818] last:border-b-0 cursor-pointer"
+                              >
+                                <MapPin className="w-3 h-3 text-[#777777] shrink-0" />
+                                <span className="truncate">{s.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
-                      <div className="sm:col-span-2">
-                        <label className="block text-[11px] text-[#666666] mb-1">
-                          Адрес ПВЗ СДЭК *
+                      {/* Street + house with live suggestions */}
+                      <div className="sm:col-span-2 relative">
+                        <label className="flex items-center justify-between text-[11px] text-[#666666] mb-1">
+                          <span>Адрес ПВЗ СДЭК *</span>
+                          {addressVerified && <Check className="w-3 h-3 text-white" />}
                         </label>
-                        <input
-                          type="text"
-                          required
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          placeholder="ул. Тверская, 12"
-                          className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required
+                            value={address}
+                            onFocus={() => {
+                              if (addressSuggestions.length > 0) setAddressOpen(true);
+                            }}
+                            onBlur={() => setTimeout(() => setAddressOpen(false), 160)}
+                            onChange={(e) => {
+                              setAddress(e.target.value);
+                              setAddressVerified(false);
+                            }}
+                            placeholder="Начните вводить улицу и дом (ул. Тверская, 12)"
+                            className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none pr-8"
+                          />
+                          {addressLoading && (
+                            <Loader2 className="w-3.5 h-3.5 text-[#777777] animate-spin absolute right-2.5 top-1/2 -translate-y-1/2" />
+                          )}
+                        </div>
+                        {addressOpen && addressSuggestions.length > 0 && (
+                          <div className="absolute left-0 right-0 mt-1 z-30 bg-[#0d0d0d] border border-[#2a2a2a] rounded-xl overflow-hidden shadow-2xl max-h-48 overflow-y-auto">
+                            {addressSuggestions.map((s) => (
+                              <button
+                                key={s.label}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  haptic.select();
+                                  setAddress(s.value);
+                                  if (s.city) {
+                                    setCity(s.city);
+                                    setCityVerified(true);
+                                  }
+                                  setAddressVerified(Boolean(s.hasHouse));
+                                  setAddressOpen(false);
+                                  setFormError('');
+                                }}
+                                className="w-full px-3 py-2 text-left text-[11px] text-[#dddddd] hover:bg-[#1a1a1a] hover:text-white flex items-center gap-2 border-b border-[#181818] last:border-b-0 cursor-pointer"
+                              >
+                                <MapPin className="w-3 h-3 text-[#777777] shrink-0" />
+                                <span className="truncate">{s.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
+                    <p className="text-[10px] text-[#666666]">
+                      Выберите город и адрес из выпадающих подсказок — система проверяет реальность адреса.
+                    </p>
                   </div>
 
                   {/* Payment choice (without Telegram Stars) */}
@@ -523,7 +783,7 @@ export default function CheckoutModal({
                   rows={2}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Пожелания по выкупу, размерам или встрече..."
+                  placeholder="Пожелания по заказу, размерам или встрече..."
                   className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none resize-none"
                 />
               </div>

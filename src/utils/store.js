@@ -13,9 +13,9 @@ const STORAGE_KEYS = {
 export const DEFAULT_SETTINGS = {
   freeShippingThreshold: 15000,
   standardShippingCost: 490,
-  supportUsername: 'dybriansik',
-  ownerUsername: 'dybriansik',
-  chinaDeliveryNote: 'Выкуп оригинальных позиций из Китая (Poizon / Taobao / 1688)'
+  supportUsername: 'broknboyzclub',
+  ownerUsername: 'broknboyzclub',
+  chinaDeliveryNote: 'Одежда и обувь в наличии и под заказ из Китая'
 };
 
 export const loadJson = (key, fallback) => {

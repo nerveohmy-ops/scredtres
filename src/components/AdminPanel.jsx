@@ -71,7 +71,8 @@ export default function AdminPanel({
   isSyncingLocal = false,
   localSyncNotice = '',
   onDismissLocalSyncNotice,
-  onSyncLocalToTurso
+  onSyncLocalToTurso,
+  onOpenProduct
 }) {
   const isOwner = canManageSettings(role);
   const [section, setSection] = useState('products');
@@ -97,13 +98,13 @@ export default function AdminPanel({
   // Settings local form
   const [freeShipInput, setFreeShipInput] = useState(String(settings.freeShippingThreshold ?? 15000));
   const [shipCostInput, setShipCostInput] = useState(String(settings.standardShippingCost ?? 490));
-  const [supportUserInput, setSupportUserInput] = useState(settings.supportUsername || 'dybriansik');
+  const [supportUserInput, setSupportUserInput] = useState(settings.supportUsername || 'broknboyzclub');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   useEffect(() => {
     setFreeShipInput(String(settings.freeShippingThreshold ?? 15000));
     setShipCostInput(String(settings.standardShippingCost ?? 490));
-    setSupportUserInput(settings.supportUsername || 'dybriansik');
+    setSupportUserInput(settings.supportUsername || 'broknboyzclub');
   }, [settings.freeShippingThreshold, settings.standardShippingCost, settings.supportUsername]);
 
   // Tracking input cache & order filters
@@ -356,7 +357,7 @@ export default function AdminPanel({
       ...settings,
       freeShippingThreshold: Math.max(0, Number(freeShipInput) || 0),
       standardShippingCost: Math.max(0, Number(shipCostInput) || 0),
-      supportUsername: supportUserInput.replace(/^@/, '').trim() || 'dybriansik'
+      supportUsername: supportUserInput.replace(/^@/, '').trim() || 'broknboyzclub'
     });
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 1800);
@@ -410,7 +411,7 @@ export default function AdminPanel({
           </h2>
           <p className="text-xs text-[#777777] mt-0.5">
             {isOwner
-              ? 'Полный доступ · @dybriansik'
+              ? 'Полный доступ · @broknboyzclub'
               : 'Управление каталогом, заказами, инфо и просмотр промокодов'}
           </p>
         </div>
@@ -651,7 +652,7 @@ export default function AdminPanel({
                     type="text"
                     value={editingProduct.brand}
                     onChange={(e) => setEditingProduct({ ...editingProduct, brand: e.target.value })}
-                    placeholder="Напр. Rick Owens / Poizon"
+                    placeholder="Напр. Rick Owens"
                     className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
                   />
                 </div>
@@ -848,7 +849,7 @@ export default function AdminPanel({
                     rows={3}
                     value={editingProduct.detailsText}
                     onChange={(e) => setEditingProduct({ ...editingProduct, detailsText: e.target.value })}
-                    placeholder={"Выкуп с Poizon (Dewu)\nОригинальная пломба и сертификат"}
+                    placeholder={"Плотный хлопок\nДоставка 7-15 дней"}
                     className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none resize-none"
                   />
                 </div>
@@ -913,7 +914,7 @@ export default function AdminPanel({
                 required
                 value={infoTitle}
                 onChange={(e) => setInfoTitle(e.target.value)}
-                placeholder="Заголовок (напр. Условия выкупа с Poizon / Доставка)"
+                placeholder="Заголовок (напр. Условия заказа / Доставка)"
                 className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
               />
 
@@ -946,7 +947,7 @@ export default function AdminPanel({
 
           {infoItems.length === 0 ? (
             <div className="p-8 text-center border border-[#161616] rounded-2xl text-xs text-[#777777]">
-              Список пуст. Поддержка приложения и владелец (@dybriansik) могут добавлять сюда актуальную информацию о выкупе, сроках и доставке.
+              Список пуст. Поддержка приложения и владелец (@broknboyzclub) могут добавлять сюда актуальную информацию о заказах, сроках и доставке.
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -1213,7 +1214,7 @@ export default function AdminPanel({
                         Оплата:{' '}
                         <span className="text-white">
                           {order.delivery?.method === 'pickup_blg'
-                            ? 'Обговор с владельцем (@dybriansik)'
+                            ? 'Обговор с владельцем (@broknboyzclub)'
                             : getPaymentMethodLabel(order.paymentMethod)}
                         </span>
                       </div>
@@ -1226,15 +1227,62 @@ export default function AdminPanel({
                     </div>
 
                     {/* Items */}
-                    <div className="p-2.5 bg-black border border-[#141414] rounded-lg space-y-1">
-                      {(order.items || []).map((it, idx) => (
-                        <div key={idx} className="flex justify-between text-[11px]">
-                          <span className="text-[#cccccc]">
-                            {it.name} ({it.size}) × {it.quantity}
-                          </span>
-                          <span className="text-white">{formatPrice(it.price * it.quantity)}</span>
-                        </div>
-                      ))}
+                    <div className="p-2.5 bg-black border border-[#141414] rounded-lg space-y-2">
+                      {(order.items || []).map((it, idx) => {
+                        const liveProd = products.find((p) => p.id === it.id) || null;
+                        const thumb = liveProd?.images?.[0] || it.image || '';
+                        const canOpen = Boolean(liveProd && typeof onOpenProduct === 'function');
+                        return (
+                          <div
+                            key={idx}
+                            onClick={
+                              canOpen
+                                ? () => {
+                                    haptic.light();
+                                    onOpenProduct(liveProd);
+                                  }
+                                : undefined
+                            }
+                            className={`flex items-center justify-between gap-2.5 text-[11px] rounded-lg p-1 -m-1 transition-colors ${
+                              canOpen ? 'hover:bg-[#111111] cursor-pointer' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-[#141416] border border-[#222222] overflow-hidden shrink-0 flex items-center justify-center p-0.5">
+                                {thumb ? (
+                                  <img
+                                    src={thumb}
+                                    alt={it.name}
+                                    loading="lazy"
+                                    className="w-full h-full object-contain"
+                                  />
+                                ) : (
+                                  <Package className="w-4 h-4 text-[#555555]" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-[#e5e5e5] font-medium truncate">
+                                  {it.name}
+                                </div>
+                                <div className="text-[10px] text-[#777777] flex items-center gap-1.5">
+                                  <span>
+                                    {it.size} × {it.quantity}
+                                  </span>
+                                  {canOpen && (
+                                    <span className="text-[#aaaaaa] inline-flex items-center gap-0.5 underline underline-offset-2">
+                                      Открыть
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-white font-medium shrink-0">
+                              {formatPrice(it.price * it.quantity)}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Order Comment */}
@@ -1315,7 +1363,7 @@ export default function AdminPanel({
                 <p className="text-[11px] text-[#777777] mt-0.5">
                   {isOwner
                     ? 'Скрыты от покупателей — список виден только владельцу и поддержке. Покупатель может лишь ввести код в корзине.'
-                    : 'Скрыты от покупателей. Просмотр доступен поддержке; добавлять и удалять коды может только владелец (@dybriansik).'}
+                    : 'Скрыты от покупателей. Просмотр доступен поддержке; добавлять и удалять коды может только владелец (@broknboyzclub).'}
                 </p>
               </div>
             </div>

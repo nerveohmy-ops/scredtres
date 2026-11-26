@@ -1,5 +1,5 @@
 // SCREDTRES Store Configuration & Catalog Schema
-// Специализация: выкуп и доставка оригинальной одежды и обуви из Китая
+// Специализация: одежда и обувь в наличии и под заказ из Китая
 
 export const CATEGORIES = [
   { id: 'all', name: 'Все' },

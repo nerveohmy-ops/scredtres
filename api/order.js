@@ -11,7 +11,9 @@ import {
   getTursoDb,
   formatTursoError,
   buildOrderStatement,
-  readSettings
+  readSettings,
+  safeJsonParse,
+  sanitizeImageUrl
 } from '../lib/turso.js';
 
 function collectStaffChatIds() {
@@ -133,7 +135,8 @@ export default async function handler(req, res) {
         quantity,
         name: String(item?.name || '').trim().slice(0, 160),
         availability: item?.availability === 'in_stock' ? 'in_stock' : 'pre_order',
-        price: Math.max(0, Math.round(Number(item?.price) || 0))
+        price: Math.max(0, Math.round(Number(item?.price) || 0)),
+        image: typeof item?.image === 'string' ? item.image.trim().slice(0, 2048) : ''
       });
     }
 
@@ -170,6 +173,38 @@ export default async function handler(req, res) {
           address: String(orderData.delivery?.address || '').trim().slice(0, 300)
         };
 
+    if (!isPickupBlg) {
+      const nameParts = sanitizedCustomer.fullName
+        .split(/\s+/)
+        .map((p) => p.trim())
+        .filter((p) => p.length >= 2);
+      if (nameParts.length < 3) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Для доставки СДЭК укажите полные ФИО (Фамилия Имя Отчество)'
+        });
+      }
+      const phoneDigits = sanitizedCustomer.phone.replace(/\D/g, '');
+      if (phoneDigits.length < 10) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Укажите корректный номер телефона получателя'
+        });
+      }
+      if (
+        sanitizedDelivery.city.length < 2 ||
+        !/[a-zа-яё]/i.test(sanitizedDelivery.city) ||
+        sanitizedDelivery.address.length < 4 ||
+        !/[a-zа-яё]/i.test(sanitizedDelivery.address) ||
+        !/\d/.test(sanitizedDelivery.address)
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Укажите корректный город и адрес с номером дома для ПВЗ СДЭК'
+        });
+      }
+    }
+
     const sanitizedComment = String(orderData.comment || '').trim().slice(0, 1000);
     const resolvedPaymentMethod = isPickupBlg ? 'manager' : paymentMethod;
 
@@ -193,20 +228,20 @@ export default async function handler(req, res) {
     };
 
     let configured = false;
-    let supportHandle = 'dybriansik';
+    let supportHandle = 'broknboyzclub';
 
     if (tursoConfigured) {
       configured = true;
       const db = await getTursoDb();
       const settings = await readSettings(db);
-      supportHandle = (settings.supportUsername || 'dybriansik').trim().replace(/^@+/, '');
+      supportHandle = (settings.supportUsername || 'broknboyzclub').trim().replace(/^@+/, '');
 
       const productIds = Array.from(new Set(normalizedInputItems.map((i) => i.id)));
       const dbProducts = new Map();
       if (productIds.length > 0) {
         const placeholders = productIds.map(() => '?').join(', ');
         const prodRes = await db.execute({
-          sql: `SELECT id, name, price, availability FROM products WHERE id IN (${placeholders})`,
+          sql: `SELECT id, name, price, availability, images_json FROM products WHERE id IN (${placeholders})`,
           args: productIds
         });
         for (const row of prodRes.rows) {
@@ -227,13 +262,16 @@ export default async function handler(req, res) {
 
       const verifiedItems = normalizedInputItems.map((item) => {
         const dbProd = dbProducts.get(item.id);
+        const imgs = safeJsonParse(dbProd.images_json, []);
+        const primaryImage = Array.isArray(imgs) && imgs.length > 0 ? sanitizeImageUrl(imgs[0]) : '';
         return {
           id: item.id,
           name: dbProd.name,
           size: item.size,
           availability: dbProd.availability,
           price: Number(dbProd.price),
-          quantity: item.quantity
+          quantity: item.quantity,
+          ...(primaryImage ? { image: primaryImage } : {})
         };
       });
 
@@ -284,7 +322,7 @@ export default async function handler(req, res) {
       DELIVERY_METHOD_LABELS[finalOrder.delivery?.method] || 'СДЭК ПВЗ';
     const paymentLabel =
       finalOrder.delivery?.method === 'pickup_blg'
-        ? 'Обговор с владельцем (@dybriansik)'
+        ? 'Обговор с владельцем (@broknboyzclub)'
         : PAYMENT_METHOD_LABELS[finalOrder.paymentMethod] || 'СБП / Карта РФ';
     const deliveryText =
       finalOrder.delivery?.method === 'pickup_blg'
@@ -304,7 +342,7 @@ export default async function handler(req, res) {
       `Доставка: ${escapeHtml(deliveryText)}`,
       finalOrder.comment ? `Комментарий: ${escapeHtml(finalOrder.comment)}` : null,
       '',
-      `Связь с владельцем по выкупу и трек-номеру: @${escapeHtml(supportHandle)}`
+      `Связь с поддержкой по заказу и трек-номеру: @${escapeHtml(supportHandle)}`
     ]
       .filter((line) => line !== null)
       .join('\n');

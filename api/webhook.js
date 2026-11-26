@@ -64,15 +64,15 @@ export default async function handler(req, res) {
     // 1. When user sends /start
     if (msg.text && msg.text.startsWith('/start')) {
       let roleLine = '';
-      if (username === 'dybriansik') {
-        roleLine = '\n\n👑 Вы вошли как владелец (@dybriansik) — панель управления открыта внутри магазина.';
+      if (username === 'broknboyzclub') {
+        roleLine = '\n\n👑 Вы вошли как владелец (@broknboyzclub) — панель управления открыта внутри магазина.';
       }
 
       const welcomeText =
         '<b>SCREDTRES</b>\n\n' +
-        'Магазин выкупа и доставки оригинальной одежды и обуви из Китая (Poizon / Dewu, Taobao, 1688).\n\n' +
+        'Магазин одежды и обуви в наличии и под заказ из Китая.\n\n' +
         '• Позиции в наличии и под заказ\n' +
-        '• По вопросам выкупа и заказов: @dybriansik' +
+        '• По вопросам и заказам: @broknboyzclub' +
         roleLine +
         '\n\nНажмите кнопку ниже, чтобы открыть каталог:';
 
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
             `Сумма: ${safeTotal} ₽\n` +
             `Доставка: СДЭК ПВЗ — ${safeCity}, ${safeAddress}` +
             (safeComment ? `\nКомментарий: ${safeComment}` : '') +
-            `\n\nСвязь с владельцем: @dybriansik`,
+            `\n\nСвязь с владельцем: @broknboyzclub`,
           parse_mode: 'HTML'
         })
       });

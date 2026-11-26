@@ -123,29 +123,65 @@ export function parseTelegramChannelHtml(html) {
   return grouped.sort((a, b) => b.postId - a.postId);
 }
 
+function extractBeforeCursor(html) {
+  const m = String(html || '').match(/data-before="(\d+)"/);
+  return m ? Number(m[1]) : null;
+}
+
+function mergeReviewsByPostId(pages) {
+  const byId = new Map();
+  for (const list of pages) {
+    for (const item of list) {
+      if (!byId.has(item.postId)) {
+        byId.set(item.postId, item);
+      }
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => b.postId - a.postId);
+}
+
+async function fetchChannelPage(url) {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; SCREDTRESBot/1.0)',
+      Accept: 'text/html'
+    },
+    signal: AbortSignal.timeout(5500)
+  });
+  if (!response.ok) return null;
+  return response.text();
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
   }
 
-  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+  res.setHeader('Cache-Control', 'public, s-maxage=180, stale-while-revalidate=600');
 
   try {
-    const response = await fetch(CHANNEL_HTML_URL, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SCREDTRESBot/1.0)',
-        Accept: 'text/html'
-      },
-      signal: AbortSignal.timeout(6000)
-    });
-    if (!response.ok) {
-      return res.status(200).json({ ok: true, reviews: [] });
+    const pages = [];
+    let nextUrl = CHANNEL_HTML_URL;
+    const seenCursors = new Set();
+    const MAX_PAGES = 4;
+
+    for (let page = 0; page < MAX_PAGES && nextUrl; page++) {
+      const html = await fetchChannelPage(nextUrl);
+      if (!html) break;
+      const parsed = parseTelegramChannelHtml(html);
+      if (parsed.length > 0) {
+        pages.push(parsed);
+      }
+      const beforeId = extractBeforeCursor(html);
+      if (!beforeId || seenCursors.has(beforeId)) break;
+      seenCursors.add(beforeId);
+      nextUrl = `${CHANNEL_HTML_URL}?before=${beforeId}`;
     }
-    const html = await response.text();
-    const reviews = parseTelegramChannelHtml(html);
+
+    const reviews = mergeReviewsByPostId(pages);
     return res.status(200).json({ ok: true, reviews });
   } catch {
-    return res.status(200).json({ ok: true, reviews: [] });
+    return res.status(200).json({ ok: false, reviews: [] });
   }
 }

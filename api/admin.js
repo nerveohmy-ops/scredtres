@@ -583,7 +583,7 @@ export default async function handler(req, res) {
         if (TOKEN && buyerTelegramId > 0 && (statusChanged || trackingChanged)) {
           try {
             const settings = await readSettings(db);
-            const supportHandle = (settings.supportUsername || 'dybriansik').trim().replace(/^@+/, '');
+            const supportHandle = (settings.supportUsername || 'broknboyzclub').trim().replace(/^@+/, '');
             const delivery = safeJsonParse(existingOrder.delivery_json, {});
             const statusLabel = ORDER_STATUS_LABELS[nextStatus] || nextStatus;
 

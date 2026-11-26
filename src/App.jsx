@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Plus, MessageCircle, SearchX, Package, AlertCircle, X, ShoppingBag, Check } from 'lucide-react';
+import { Plus, MessageCircle, SearchX, Package, AlertCircle, X, ShoppingBag, Check, ArrowUp } from 'lucide-react';
 import { store, reconcileCartWithProducts } from './utils/store';
 import { SEED_PRODUCTS } from './data/seedProducts';
 import { fetchCatalogBootstrap, sendAdminAction } from './utils/api';
@@ -89,7 +89,7 @@ export default function App() {
   const role = resolveUserRole(tgUser, devRoleOverride, serverRole);
   const isStaff = canManageProducts(role);
   const isBrowserGuest = dbConfigured && !tg?.initData && !isLocalDevEnvironment();
-  const supportUsername = (settings?.supportUsername || 'dybriansik').replace(/^@/, '');
+  const supportUsername = (settings?.supportUsername || 'broknboyzclub').replace(/^@/, '');
 
   // Navigation & Filters
   const [activeTab, setActiveTab] = useState('catalog');
@@ -108,6 +108,17 @@ export default function App() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutSummary, setCheckoutSummary] = useState(null);
   const [cartToast, setCartToast] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const next = window.scrollY > 360;
+      setShowScrollTop((prev) => (prev === next ? prev : next));
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const catalogRef = useRef(null);
   const loadMoreRef = useRef(null);
@@ -701,10 +712,10 @@ export default function App() {
                   </div>
                   <div className="space-y-1.5">
                     <h2 className="text-sm font-cinzel font-bold uppercase tracking-wider text-white">
-                      Выкуп одежды из Китая
+                      Каталог SCREDTRES
                     </h2>
                     <p className="text-xs text-[#888888] leading-relaxed">
-                      Каталог обновляется. Вы можете оформить индивидуальный выкуп оригинальных вещей с Poizon (Dewu), Taobao и 1688 через поддержку.
+                      Каталог обновляется. По вопросам наличия и индивидуального заказа напишите в поддержку.
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-1">
@@ -855,9 +866,24 @@ export default function App() {
             localSyncNotice={localSyncNotice}
             onDismissLocalSyncNotice={() => setLocalSyncNotice('')}
             onSyncLocalToTurso={handleSyncLocalToTurso}
+            onOpenProduct={setSelectedProduct}
           />
         )}
       </main>
+
+      {showScrollTop && !selectedProduct && !cartOpen && !checkoutOpen && (
+        <button
+          type="button"
+          onClick={() => {
+            haptic.light();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          aria-label="Подняться вверх"
+          className="fixed bottom-20 right-4 z-30 w-10 h-10 rounded-full bg-[#111111]/95 border border-[#2c2c2c] hover:border-white text-white shadow-xl flex items-center justify-center transition-colors cursor-pointer"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
+      )}
 
       <Footer onGoHome={handleGoHome} />
 

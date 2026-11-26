@@ -146,10 +146,10 @@ export default function CartDrawer({
                 </p>
                 <button
                   type="button"
-                  onClick={() => openTelegramLink('https://t.me/dybriansik')}
+                  onClick={() => openTelegramLink('https://t.me/broknboyzclub')}
                   className="text-white underline underline-offset-4 cursor-pointer"
                 >
-                  Связаться с @dybriansik
+                  Связаться с @broknboyzclub
                 </button>
               </div>
             </div>

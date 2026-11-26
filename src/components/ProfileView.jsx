@@ -32,7 +32,7 @@ export default function ProfileView({
   const [openInfoId, setOpenInfoId] = useState(null);
   const isDevLocal = isLocalDevEnvironment();
   const isStaff = canManageInfo(role);
-  const supportUsername = (settings?.supportUsername || 'dybriansik').replace(/^@/, '');
+  const supportUsername = (settings?.supportUsername || 'broknboyzclub').replace(/^@/, '');
 
   const getOrderStatusLabel = (statusId) => {
     return ORDER_STATUSES.find((s) => s.id === statusId)?.name || 'Новый заказ';
@@ -139,7 +139,7 @@ export default function ProfileView({
                         Оплата:{' '}
                         <span className="text-[#cccccc]">
                           {order.delivery?.method === 'pickup_blg'
-                            ? 'Обговор с владельцем (@dybriansik)'
+                            ? 'Обговор с владельцем (@broknboyzclub)'
                             : getPaymentMethodLabel(order.paymentMethod)}
                         </span>
                       </div>
@@ -196,7 +196,7 @@ export default function ProfileView({
           <div>
             <p className="font-semibold text-white">Связаться с поддержкой</p>
             <p className="text-[11px] text-[#777777] mt-0.5">
-              Помощь с выкупом из Китая, размерами и расчётом цены · @{supportUsername}
+              Помощь с заказами, размерами и доставкой · @{supportUsername}
             </p>
           </div>
         </div>
@@ -211,12 +211,12 @@ export default function ProfileView({
         <SocialLinks variant="grid" />
       </section>
 
-      {/* Dynamic Info Blocks managed by Support & Owner (@dybriansik) */}
+      {/* Dynamic Info Blocks managed by Support & Owner (@broknboyzclub) */}
       {(infoItems.length > 0 || isStaff) && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-medium text-[#777777] uppercase tracking-wider">
-              Информация о выкупе и доставке
+              Информация о заказах и доставке
             </h3>
             {isStaff && (
               <button
@@ -291,7 +291,7 @@ export default function ProfileView({
             {[
               { id: null, label: 'Покупатель' },
               { id: ROLES.SUPPORT, label: 'Поддержка приложения' },
-              { id: ROLES.ADMIN, label: '@dybriansik (Владелец)' }
+              { id: ROLES.ADMIN, label: '@broknboyzclub (Владелец)' }
             ].map((opt) => {
               const active = devRoleOverride === opt.id;
               return (

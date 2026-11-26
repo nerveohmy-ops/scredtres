@@ -1,6 +1,6 @@
 // Role-based access control for SCREDTRES
 
-export const OWNER_USERNAME = 'dybriansik';
+export const OWNER_USERNAME = 'broknboyzclub';
 
 export const ROLES = {
   ADMIN: 'admin',
