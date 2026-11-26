@@ -113,3 +113,43 @@ export async function fetchAddressSuggestions({ mode = 'address', q = '', city =
   }
   return { ok: false, serviceUnavailable: true, suggestions: [] };
 }
+
+export async function fetchCdekPvz({ city = '', lat, lon, signal } = {}) {
+  try {
+    const params = new URLSearchParams();
+    if (city) params.set('city', String(city).trim());
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      params.set('lat', String(lat));
+      params.set('lon', String(lon));
+    }
+    const res = await fetch(`/api/cdek-pvz?${params.toString()}`, {
+      method: 'GET',
+      signal
+    });
+    const data = await parseJsonSafe(res);
+    if (res.ok && data) {
+      return {
+        ok: Boolean(data.ok),
+        city: data.city || city,
+        center: data.center || null,
+        points: Array.isArray(data.points) ? data.points : [],
+        source: data.source || 'osm'
+      };
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return { ok: false, aborted: true, points: [] };
+  }
+  return { ok: false, points: [] };
+}
+
+export async function reverseGeocodePvz(lat, lon) {
+  try {
+    const res = await fetch(
+      `/api/cdek-pvz?mode=reverse&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+      { method: 'GET' }
+    );
+    const data = await parseJsonSafe(res);
+    if (res.ok && data?.ok) return data;
+  } catch {}
+  return null;
+}

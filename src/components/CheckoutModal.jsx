@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, AlertCircle, MapPin, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { X, Check, AlertCircle, MapPin, Loader2, LocateFixed } from 'lucide-react';
 import { getTelegramUser, submitOrderToServer, openTelegramLink, haptic } from '../utils/telegram';
 import { fetchAddressSuggestions } from '../utils/api';
 import {
@@ -15,6 +15,7 @@ import {
   getPaymentMethodLabel
 } from '../data/products';
 
+const CdekPvzMapModal = lazy(() => import('./CdekPvzMapModal'));
 const OWNER_HANDLE = 'dybriansik';
 const NAME_PART_RE = /^[a-zA-Zа-яА-ЯёЁ-]{2,40}$/;
 
@@ -50,6 +51,8 @@ export default function CheckoutModal({
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressOpen, setAddressOpen] = useState(false);
+  const [pvzMapOpen, setPvzMapOpen] = useState(false);
+  const [selectedPvzMeta, setSelectedPvzMeta] = useState(null);
 
   const [paymentMethod, setPaymentMethod] = useState('sbp_card');
   const [comment, setComment] = useState('');
@@ -66,6 +69,7 @@ export default function CheckoutModal({
       setFormError('');
       setCityOpen(false);
       setAddressOpen(false);
+      setPvzMapOpen(false);
     }
   }, [isOpen]);
 
@@ -619,7 +623,7 @@ export default function CheckoutModal({
                     </div>
                   </div>
 
-                  {/* СДЭК address with live autocomplete & verification */}
+                  {/* СДЭК address with interactive PVZ map + live autocomplete & verification */}
                   <div className="space-y-3 pt-2 border-t border-[#141414]">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[#888888] uppercase tracking-wider block font-medium">
@@ -627,11 +631,38 @@ export default function CheckoutModal({
                       </span>
                       {cityVerified && addressVerified && (
                         <span className="inline-flex items-center gap-1 text-[10px] text-white bg-[#141414] border border-[#2a2a2a] px-2 py-0.5 rounded-full">
-                          <Check className="w-3 h-3" />
-                          <span>Адрес подтверждён</span>
+                          <Check className="w-3 h-3 text-[#22c55e]" />
+                          <span>{selectedPvzMeta ? 'ПВЗ выбран на карте' : 'Адрес подтверждён'}</span>
                         </span>
                       )}
                     </div>
+
+                    {/* Interactive CDEK PVZ Map Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic.medium();
+                        setPvzMapOpen(true);
+                      }}
+                      className="w-full p-3 rounded-xl bg-[#111111] border border-[#2a2a2a] hover:border-white text-left flex items-center justify-between gap-3 transition-colors cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-black border border-[#262626] group-hover:border-[#22c55e] flex items-center justify-center shrink-0 transition-colors">
+                          <LocateFixed className="w-4 h-4 text-[#22c55e]" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-white">
+                            {selectedPvzMeta ? 'Изменить ПВЗ СДЭК на карте' : 'Выбрать ПВЗ СДЭК на карте'}
+                          </div>
+                          <div className="text-[10px] text-[#777777] truncate">
+                            {selectedPvzMeta?.workTime
+                              ? `График: ${selectedPvzMeta.workTime}`
+                              : 'Все пункты выдачи рядом по геолокации или городу'}
+                          </div>
+                        </div>
+                      </div>
+                      <MapPin className="w-4 h-4 text-[#888888] group-hover:text-white shrink-0" />
+                    </button>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {/* City with live suggestions */}
@@ -653,6 +684,7 @@ export default function CheckoutModal({
                               setCity(e.target.value);
                               setCityVerified(false);
                               setAddressVerified(false);
+                              setSelectedPvzMeta(null);
                             }}
                             placeholder="Москва"
                             className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none pr-8"
@@ -704,6 +736,7 @@ export default function CheckoutModal({
                             onChange={(e) => {
                               setAddress(e.target.value);
                               setAddressVerified(false);
+                              setSelectedPvzMeta(null);
                             }}
                             placeholder="Начните вводить улицу и дом (ул. Тверская, 12)"
                             className="w-full bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none pr-8"
@@ -802,6 +835,24 @@ export default function CheckoutModal({
         </div>
 
       </div>
+
+      {pvzMapOpen && (
+        <Suspense fallback={null}>
+          <CdekPvzMapModal
+            isOpen={pvzMapOpen}
+            onClose={() => setPvzMapOpen(false)}
+            initialCity={city || 'Москва'}
+            onSelectPvz={(pvz) => {
+              setCity(pvz.city);
+              setAddress(pvz.address);
+              setCityVerified(true);
+              setAddressVerified(true);
+              setSelectedPvzMeta(pvz);
+              setFormError('');
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
