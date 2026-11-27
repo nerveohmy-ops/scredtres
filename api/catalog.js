@@ -31,8 +31,8 @@ export default async function handler(req, res) {
     const db = await getTursoDb();
 
     const [productsRes, infoRes, promoCountRes, settings] = await Promise.all([
-      db.execute(`SELECT * FROM products ORDER BY created_at DESC`),
-      db.execute(`SELECT * FROM info_items ORDER BY updated_at DESC`),
+      db.execute(`SELECT * FROM products ORDER BY created_at DESC LIMIT 1000`),
+      db.execute(`SELECT * FROM info_items ORDER BY updated_at DESC LIMIT 100`),
       db.execute(`SELECT COUNT(*) AS cnt FROM promos`),
       readSettings(db)
     ]);
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
 
     if (auth.ok && viewerId > 0) {
       const myOrdersRes = await db.execute({
-        sql: `SELECT * FROM orders WHERE telegram_id = ? ORDER BY timestamp DESC`,
+        sql: `SELECT * FROM orders WHERE telegram_id = ? ORDER BY timestamp DESC LIMIT 200`,
         args: [viewerId]
       });
       payload.myOrders = myOrdersRes.rows.map(mapOrderRow);
@@ -61,8 +61,8 @@ export default async function handler(req, res) {
 
     if (isStaff) {
       const [allOrdersRes, promosRes] = await Promise.all([
-        db.execute(`SELECT * FROM orders ORDER BY timestamp DESC`),
-        db.execute(`SELECT * FROM promos ORDER BY created_at DESC`)
+        db.execute(`SELECT * FROM orders ORDER BY timestamp DESC LIMIT 500`),
+        db.execute(`SELECT * FROM promos ORDER BY created_at DESC LIMIT 200`)
       ]);
       payload.adminOrders = allOrdersRes.rows.map(mapOrderRow);
       payload.promos = promosRes.rows.map(mapPromoRow);

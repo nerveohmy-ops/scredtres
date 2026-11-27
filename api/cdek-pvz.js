@@ -1,6 +1,7 @@
 // Serverless CDEK PVZ (Pickup Point) Lookup API
 // Uses official CDEK API v2 when CDEK_CLIENT_ID + CDEK_CLIENT_SECRET are configured,
 // with automatic zero-config OpenStreetMap Nominatim fallback for Russia & CIS.
+import { getClientIpHash, checkRateLimit } from '../lib/rateLimit.js';
 
 const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
 const NOMINATIM_REVERSE_URL = 'https://nominatim.openstreetmap.org/reverse';
@@ -229,12 +230,33 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
   }
 
+  const ipHash = getClientIpHash(req);
+  const rate = checkRateLimit(`pvz:${ipHash}`, { windowMs: 60000, max: 35 });
+  if (!rate.allowed) {
+    res.setHeader('Retry-After', String(Math.ceil(rate.retryAfterMs / 1000)));
+    return res.status(429).json({ ok: false, points: [], error: 'Слишком много запросов карты ПВЗ.' });
+  }
+
   res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=3600');
 
   const mode = cleanStr(req.query?.mode || 'search', 20);
-  const lat = req.query?.lat !== undefined ? Number(req.query.lat) : NaN;
-  const lon = req.query?.lon !== undefined ? Number(req.query.lon) : NaN;
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+  const rawLatProvided = req.query?.lat !== undefined && req.query?.lat !== '';
+  const rawLonProvided = req.query?.lon !== undefined && req.query?.lon !== '';
+  const lat = rawLatProvided ? Number(req.query.lat) : NaN;
+  const lon = rawLonProvided ? Number(req.query.lon) : NaN;
+  const coordsInRange =
+    Number.isFinite(lat) &&
+    Number.isFinite(lon) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lon >= -180 &&
+    lon <= 180;
+
+  if ((rawLatProvided || rawLonProvided) && !coordsInRange) {
+    return res.status(400).json({ ok: false, points: [], error: 'Некорректные координаты' });
+  }
+
+  const hasCoords = coordsInRange;
   let city = cleanStr(req.query?.city || '', 80);
 
   try {

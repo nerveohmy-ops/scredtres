@@ -1,5 +1,6 @@
 // Live public reviews fetcher from https://t.me/s/reviewscred (progressive fallback)
 import { sanitizeImageUrl } from '../lib/turso.js';
+import { getClientIpHash, checkRateLimit } from '../lib/rateLimit.js';
 
 const CHANNEL_HTML_URL = 'https://t.me/s/reviewscred';
 
@@ -156,6 +157,13 @@ async function fetchChannelPage(url) {
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+  }
+
+  const ipHash = getClientIpHash(req);
+  const rate = checkRateLimit(`reviews:${ipHash}`, { windowMs: 60000, max: 20 });
+  if (!rate.allowed) {
+    res.setHeader('Retry-After', String(Math.ceil(rate.retryAfterMs / 1000)));
+    return res.status(429).json({ ok: false, reviews: [], error: 'Слишком много запросов отзывов.' });
   }
 
   res.setHeader('Cache-Control', 'public, s-maxage=180, stale-while-revalidate=600');

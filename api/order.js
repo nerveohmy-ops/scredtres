@@ -87,12 +87,23 @@ export default async function handler(req, res) {
     );
 
     const tursoConfigured = isTursoConfigured();
-    if (tursoConfigured && !hasVerifiedUser) {
+    if ((tursoConfigured || Boolean(TOKEN)) && !hasVerifiedUser) {
       return res.status(401).json({
         ok: false,
-        configured: true,
+        configured: tursoConfigured,
         error: 'Для оформления заказа откройте магазин внутри Telegram (требуется авторизация)'
       });
+    }
+
+    if (hasVerifiedUser) {
+      const userRate = checkRateLimit(`order:uid:${verifiedUserId}`, { windowMs: 60000, max: 10 });
+      if (!userRate.allowed) {
+        res.setHeader('Retry-After', String(Math.ceil(userRate.retryAfterMs / 1000)));
+        return res.status(429).json({
+          ok: false,
+          error: 'Слишком много попыток оформления заказа. Подождите минуту.'
+        });
+      }
     }
 
     if (
@@ -136,7 +147,7 @@ export default async function handler(req, res) {
         name: String(item?.name || '').trim().slice(0, 160),
         availability: item?.availability === 'in_stock' ? 'in_stock' : 'pre_order',
         price: Math.max(0, Math.round(Number(item?.price) || 0)),
-        image: typeof item?.image === 'string' ? item.image.trim().slice(0, 2048) : ''
+        image: sanitizeImageUrl(item?.image)
       });
     }
 

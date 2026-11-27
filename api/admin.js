@@ -1,5 +1,6 @@
 // Authenticated Admin / Support mutation endpoint: POST /api/admin
 import { authenticateRequest, getBotToken, ROLES } from '../lib/auth.js';
+import { getClientIpHash, checkRateLimit } from '../lib/rateLimit.js';
 import {
   ALLOWED_CATEGORIES,
   ALLOWED_DELIVERY_METHODS,
@@ -377,6 +378,13 @@ export default async function handler(req, res) {
 
   if (!isStaff) {
     return res.status(403).json({ ok: false, error: 'Forbidden' });
+  }
+
+  const rateKey = auth.user?.id ? `admin:uid:${auth.user.id}` : `admin:ip:${getClientIpHash(req)}`;
+  const rate = checkRateLimit(rateKey, { windowMs: 60000, max: 60 });
+  if (!rate.allowed) {
+    res.setHeader('Retry-After', String(Math.ceil(rate.retryAfterMs / 1000)));
+    return res.status(429).json({ ok: false, error: 'Слишком много административных запросов. Подождите минуту.' });
   }
 
   const { action, payload } = req.body || {};

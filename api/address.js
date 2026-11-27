@@ -1,5 +1,6 @@
 // Serverless Address & City Autocomplete / Validation Proxy (OpenStreetMap Nominatim)
 // Supports mode=city and mode=address for Russia & CIS (CDEK coverage)
+import { getClientIpHash, checkRateLimit } from '../lib/rateLimit.js';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 
@@ -64,6 +65,13 @@ function formatAddressItem(item, expectedCity = '') {
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+  }
+
+  const ipHash = getClientIpHash(req);
+  const rate = checkRateLimit(`address:${ipHash}`, { windowMs: 60000, max: 40 });
+  if (!rate.allowed) {
+    res.setHeader('Retry-After', String(Math.ceil(rate.retryAfterMs / 1000)));
+    return res.status(429).json({ ok: false, error: 'Слишком много запросов адреса. Подождите минуту.' });
   }
 
   const mode = req.query?.mode === 'city' ? 'city' : 'address';
