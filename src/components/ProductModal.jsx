@@ -14,7 +14,7 @@ import {
   ChevronRight,
   ZoomIn
 } from 'lucide-react';
-import { haptic } from '../utils/telegram';
+import { haptic, registerBackHandler } from '../utils/telegram';
 import { formatPrice } from '../utils/store';
 import { CATEGORIES, DEFAULT_DELIVERY_DAYS } from '../data/products';
 
@@ -63,13 +63,17 @@ export default function ProductModal({
 
   useEffect(() => {
     if (!zoomOpen) return;
+    const unregisterBack = registerBackHandler(() => setZoomOpen(false));
     const onKeyDown = (e) => {
       if (e.key === 'Escape') setZoomOpen(false);
       if (e.key === 'ArrowLeft') stepImage(-1);
       if (e.key === 'ArrowRight') stepImage(1);
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      unregisterBack();
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [zoomOpen, stepImage]);
 
   useEffect(() => {

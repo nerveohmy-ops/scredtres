@@ -25,7 +25,7 @@ export default function SearchBar({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-30 pt-[65px] flex flex-col">
+    <div className="fixed inset-0 z-50 pt-[65px] flex flex-col">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
@@ -36,7 +36,7 @@ export default function SearchBar({
       />
 
       {/* Slide-down Drawer Panel */}
-      <div className="relative z-10 w-full bg-[#070707] border-b border-[#222222] shadow-2xl animate-[slideDown_0.2s_ease-out] max-h-[82vh] overflow-y-auto">
+      <div className="relative z-10 w-full bg-[#070707] border-b border-[#222222] shadow-2xl animate-[slideDown_0.2s_ease-out] max-h-[82dvh] overflow-y-auto safe-pb">
         <div className="max-w-4xl mx-auto px-4 py-5 space-y-5">
 
           {/* Header row */}

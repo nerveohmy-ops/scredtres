@@ -44,10 +44,18 @@ export default async function handler(req, res) {
       return res.status(404).json({ ok: false, configured: true, error: 'Промокод не найден' });
     }
 
+    const promo = mapPromoRow(result.rows[0]);
+    if (promo.expiresAt && Number.isFinite(Date.parse(promo.expiresAt)) && Date.parse(promo.expiresAt) < Date.now()) {
+      return res.status(400).json({ ok: false, configured: true, error: 'Срок действия промокода истёк' });
+    }
+    if (promo.maxUses !== null && promo.usedCount >= promo.maxUses) {
+      return res.status(400).json({ ok: false, configured: true, error: 'Лимит использований промокода исчерпан' });
+    }
+
     return res.status(200).json({
       ok: true,
       configured: true,
-      promo: mapPromoRow(result.rows[0])
+      promo
     });
   } catch (err) {
     console.error('Promo API error:', err);

@@ -106,7 +106,7 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [checkoutSummary, setCheckoutSummary] = useState(null);
+  const [appliedPromo, setAppliedPromo] = useState(null);
   const [cartToast, setCartToast] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
@@ -134,6 +134,11 @@ export default function App() {
     const data = await fetchCatalogBootstrap();
     setIsRefreshing(false);
     setBootstrapDone(true);
+
+    if (data?.networkError) {
+      setSyncError('Нет соединения с сервером. Проверьте интернет и обновите страницу.');
+      return;
+    }
 
     if (!data?.configured) return;
 
@@ -322,9 +327,9 @@ export default function App() {
       sorted.sort((a, b) => Number(b.price) - Number(a.price));
     } else {
       sorted.sort((a, b) => {
-        const da = new Date(a.createdAt || 0).getTime();
-        const db = new Date(b.createdAt || 0).getTime();
-        return db - da;
+        const da = Date.parse(a.createdAt || '');
+        const db = Date.parse(b.createdAt || '');
+        return (Number.isFinite(db) ? db : 0) - (Number.isFinite(da) ? da : 0);
       });
     }
 
@@ -352,6 +357,7 @@ export default function App() {
   // Cart Actions (stored strictly as { product, size, quantity })
   const handleAddToCart = useCallback((product, size, quantity = 1) => {
     const chosenSize = size || product.sizes?.[0] || 'ONE SIZE';
+    const addQty = Math.max(1, Math.min(99, Number(quantity) || 1));
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) => item.product.id === product.id && item.size === chosenSize
@@ -361,11 +367,11 @@ export default function App() {
         updated[existingIndex] = {
           ...updated[existingIndex],
           product,
-          quantity: updated[existingIndex].quantity + quantity
+          quantity: Math.min(99, updated[existingIndex].quantity + addQty)
         };
         return updated;
       }
-      return [...prev, { product, size: chosenSize, quantity }];
+      return [...prev, { product, size: chosenSize, quantity: addQty }];
     });
 
     setCartToast({ name: product.name, size: chosenSize });
@@ -383,10 +389,11 @@ export default function App() {
       handleRemoveCartItem(productId, size);
       return;
     }
+    const clamped = Math.min(99, Math.max(1, Math.floor(Number(newQuantity) || 1)));
     setCart((prev) =>
       prev.map((item) =>
         item.product.id === productId && item.size === size
-          ? { ...item, quantity: newQuantity }
+          ? { ...item, quantity: clamped }
           : item
       )
     );
@@ -436,9 +443,29 @@ export default function App() {
     return () => observer.disconnect();
   }, [activeTab, visibleCount, filteredProducts.length]);
 
+  // Reactive order summary (stays in sync if catalog prices refresh during checkout)
+  const liveCheckoutSummary = useMemo(() => {
+    if (cart.length === 0) return null;
+    const freeThreshold = settings?.freeShippingThreshold ?? 15000;
+    const stdShipping = settings?.standardShippingCost ?? 490;
+    const subtotal = cart.reduce((sum, item) => sum + Number(item.product.price || 0) * item.quantity, 0);
+    const discountAmount = appliedPromo
+      ? Math.round((subtotal * Number(appliedPromo.discountPercent || 0)) / 100)
+      : 0;
+    const shippingCost = subtotal >= freeThreshold ? 0 : stdShipping;
+    const total = Math.max(0, subtotal - discountAmount + shippingCost);
+    return {
+      items: cart,
+      subtotal,
+      discountAmount,
+      shippingCost,
+      total,
+      appliedPromo
+    };
+  }, [cart, appliedPromo, settings]);
+
   // Order Submission
-  const handleProceedToCheckout = (summary) => {
-    setCheckoutSummary(summary);
+  const handleProceedToCheckout = () => {
     setCartOpen(false);
     setCheckoutOpen(true);
   };
@@ -446,6 +473,7 @@ export default function App() {
   const handleOrderSuccess = (orderRecord) => {
     setOrders((prev) => [orderRecord, ...prev]);
     setCart([]);
+    setAppliedPromo(null);
   };
 
   // Admin / Support CRUD Actions (writes to Turso via /api/admin when configured)
@@ -871,7 +899,7 @@ export default function App() {
         )}
       </main>
 
-      {showScrollTop && !selectedProduct && !cartOpen && !checkoutOpen && (
+      {showScrollTop && !cartToast && !selectedProduct && !cartOpen && !checkoutOpen && (
         <button
           type="button"
           onClick={() => {
@@ -953,6 +981,8 @@ export default function App() {
         onClose={() => setCartOpen(false)}
         items={cart}
         promos={promos}
+        appliedPromo={appliedPromo}
+        onAppliedPromoChange={setAppliedPromo}
         hasPromos={hasPromosServer}
         dbConfigured={dbConfigured}
         isBrowserGuest={isBrowserGuest}
@@ -966,11 +996,8 @@ export default function App() {
 
       <CheckoutModal
         isOpen={checkoutOpen}
-        onClose={() => {
-          setCheckoutOpen(false);
-          setCheckoutSummary(null);
-        }}
-        orderSummary={checkoutSummary}
+        onClose={() => setCheckoutOpen(false)}
+        orderSummary={liveCheckoutSummary}
         supportUsername={supportUsername}
         dbConfigured={dbConfigured}
         isBrowserGuest={isBrowserGuest}

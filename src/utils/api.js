@@ -1,5 +1,5 @@
 // Frontend API client for Turso-backed Vercel endpoints (with clean local fallback)
-import { tg } from './telegram';
+import { getTg } from './telegram';
 
 async function parseJsonSafe(res) {
   const ct = res.headers.get('content-type') || '';
@@ -17,8 +17,9 @@ export async function fetchCatalogBootstrap() {
       method: 'GET',
       cache: 'no-store',
       headers: {
-        'x-telegram-init-data': tg?.initData || ''
-      }
+        'x-telegram-init-data': getTg()?.initData || ''
+      },
+      signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
     });
     const data = await parseJsonSafe(res);
     if (!data) {
@@ -38,13 +39,14 @@ export async function fetchCatalogBootstrap() {
       };
     }
   } catch (err) {
-    console.warn('Catalog bootstrap fallback to local mode:', err);
+    console.warn('Catalog bootstrap network/timeout error:', err);
+    return { configured: false, role: null, networkError: true };
   }
   return { configured: false, role: null };
 }
 
 export async function sendAdminAction(action, payload) {
-  const initData = tg?.initData || '';
+  const initData = getTg()?.initData || '';
   const res = await fetch('/api/admin', {
     method: 'POST',
     headers: {

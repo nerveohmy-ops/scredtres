@@ -13,12 +13,12 @@ export default function BottomNav({
   const isStaff = role === ROLES.ADMIN || role === ROLES.SUPPORT;
 
   const tabs = [
-    { id: 'catalog', label: 'Каталог', icon: LayoutGrid },
-    { id: 'favorites', label: 'Избранное', icon: Heart, hasBadge: favoritesCount > 0 },
-    { id: 'cart', label: 'Корзина', icon: ShoppingBag, badgeText: cartCount > 0 ? `${cartCount}` : null },
-    { id: 'reviews', label: 'Отзывы', icon: MessageSquareText },
-    { id: 'profile', label: 'Профиль', icon: User },
-    ...(isStaff ? [{ id: 'admin', label: role === ROLES.ADMIN ? 'Админ' : 'Панель', icon: Shield }] : [])
+    { id: 'catalog', label: 'Каталог', shortLabel: 'Каталог', icon: LayoutGrid },
+    { id: 'favorites', label: 'Избранное', shortLabel: 'Избр.', icon: Heart, hasBadge: favoritesCount > 0 },
+    { id: 'cart', label: 'Корзина', shortLabel: 'Корзина', icon: ShoppingBag, badgeText: cartCount > 0 ? `${cartCount}` : null },
+    { id: 'reviews', label: 'Отзывы', shortLabel: 'Отзывы', icon: MessageSquareText },
+    { id: 'profile', label: 'Профиль', shortLabel: 'Профиль', icon: User },
+    ...(isStaff ? [{ id: 'admin', label: role === ROLES.ADMIN ? 'Админ' : 'Панель', shortLabel: role === ROLES.ADMIN ? 'Админ' : 'Панель', icon: Shield }] : [])
   ];
 
   return (
@@ -35,7 +35,7 @@ export default function BottomNav({
                 haptic.select();
                 onSelectTab(tab.id);
               }}
-              className={`relative flex flex-col items-center justify-center flex-1 min-w-0 px-0.5 py-0.5 transition-colors cursor-pointer ${
+              className={`relative flex flex-col items-center justify-center flex-1 min-w-0 px-0.5 py-1 transition-colors cursor-pointer ${
                 isActive ? 'text-white' : 'text-[#666666] hover:text-[#999999]'
               }`}
             >
@@ -50,10 +50,11 @@ export default function BottomNav({
                   </span>
                 )}
               </div>
-              <span className={`text-[9px] sm:text-[10px] mt-1 tracking-tighter sm:tracking-tight leading-none whitespace-nowrap ${
+              <span className={`text-[9px] sm:text-[10px] mt-1 tracking-tighter sm:tracking-tight leading-none truncate max-w-full ${
                 isActive ? 'font-medium text-white' : 'text-[#666666]'
               }`}>
-                {tab.label}
+                <span className="sm:hidden">{isStaff ? tab.shortLabel : tab.label}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
               </span>
             </button>
           );

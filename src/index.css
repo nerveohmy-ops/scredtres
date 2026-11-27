@@ -95,3 +95,12 @@
 .scred-dark-map .leaflet-control-zoom a:hover {
   background: #1c1c1c !important;
 }
+
+/* Prevent iOS WebView auto-zoom when focusing inputs < 16px */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}

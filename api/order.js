@@ -11,6 +11,7 @@ import {
   getTursoDb,
   formatTursoError,
   buildOrderStatement,
+  mapOrderRow,
   readSettings,
   safeJsonParse,
   sanitizeImageUrl
@@ -219,8 +220,15 @@ export default async function handler(req, res) {
     const sanitizedComment = String(orderData.comment || '').trim().slice(0, 1000);
     const resolvedPaymentMethod = isPickupBlg ? 'manager' : paymentMethod;
 
+    const rawIdempotencyKey =
+      typeof orderData.idempotencyKey === 'string' &&
+      /^[a-zA-Z0-9_-]{8,64}$/.test(orderData.idempotencyKey.trim())
+        ? orderData.idempotencyKey.trim()
+        : null;
+
     let finalOrder = {
       orderId: serverOrderId,
+      idempotencyKey: rawIdempotencyKey,
       timestamp: serverTimestamp,
       status: 'new',
       trackingNumber: '',
@@ -244,6 +252,23 @@ export default async function handler(req, res) {
     if (tursoConfigured) {
       configured = true;
       const db = await getTursoDb();
+
+      // Idempotency guard: prevent duplicate orders on double tap or mobile retry
+      if (rawIdempotencyKey && hasVerifiedUser) {
+        const existingRes = await db.execute({
+          sql: `SELECT * FROM orders WHERE idempotency_key = ? AND telegram_id = ? LIMIT 1`,
+          args: [rawIdempotencyKey, verifiedUserId]
+        });
+        if (existingRes.rows.length > 0) {
+          return res.status(200).json({
+            ok: true,
+            configured: true,
+            deduplicated: true,
+            orderRecord: mapOrderRow(existingRes.rows[0])
+          });
+        }
+      }
+
       const settings = await readSettings(db);
       supportHandle = (settings.supportUsername || 'dybriansik').trim().replace(/^@+/, '');
 
@@ -252,7 +277,7 @@ export default async function handler(req, res) {
       if (productIds.length > 0) {
         const placeholders = productIds.map(() => '?').join(', ');
         const prodRes = await db.execute({
-          sql: `SELECT id, name, price, availability, images_json FROM products WHERE id IN (${placeholders})`,
+          sql: `SELECT id, name, price, availability, images_json, sizes_json FROM products WHERE id IN (${placeholders})`,
           args: productIds
         });
         for (const row of prodRes.rows) {
@@ -260,13 +285,22 @@ export default async function handler(req, res) {
         }
       }
 
-      // Reject order if ANY item id does not exist in products table
+      // Reject order if ANY item id does not exist in products table or size is invalid
       for (const item of normalizedInputItems) {
-        if (!dbProducts.has(item.id)) {
+        const dbProd = dbProducts.get(item.id);
+        if (!dbProd) {
           return res.status(400).json({
             ok: false,
             configured: true,
             error: 'Один или несколько товаров отсутствуют в каталоге'
+          });
+        }
+        const allowedSizes = safeJsonParse(dbProd.sizes_json, []);
+        if (Array.isArray(allowedSizes) && allowedSizes.length > 0 && !allowedSizes.includes(item.size)) {
+          return res.status(400).json({
+            ok: false,
+            configured: true,
+            error: `Недоступный размер (${item.size}) для товара «${dbProd.name}»`
           });
         }
       }
@@ -291,15 +325,49 @@ export default async function handler(req, res) {
       let appliedPromoCode = null;
       let discount = 0;
       const requestedPromo = String(orderData.pricing?.promoCode || '').trim().toUpperCase();
-      if (requestedPromo && PROMO_CODE_RE.test(requestedPromo)) {
+      if (requestedPromo) {
+        if (!PROMO_CODE_RE.test(requestedPromo)) {
+          return res.status(400).json({
+            ok: false,
+            configured: true,
+            error: 'Некорректный формат промокода'
+          });
+        }
         const promoRes = await db.execute({
-          sql: `SELECT code, discount_percent FROM promos WHERE code = ? LIMIT 1`,
+          sql: `SELECT code, discount_percent, max_uses, used_count, expires_at, min_subtotal FROM promos WHERE code = ? LIMIT 1`,
           args: [requestedPromo]
         });
-        if (promoRes.rows.length > 0) {
-          appliedPromoCode = promoRes.rows[0].code;
-          discount = Math.round((subtotal * Number(promoRes.rows[0].discount_percent)) / 100);
+        const pr = promoRes.rows[0];
+        if (!pr) {
+          return res.status(400).json({
+            ok: false,
+            configured: true,
+            error: 'Применённый промокод больше не действует. Уберите его и повторите заказ.'
+          });
         }
+        if (pr.expires_at && Number.isFinite(Date.parse(pr.expires_at)) && Date.parse(pr.expires_at) < Date.now()) {
+          return res.status(400).json({
+            ok: false,
+            configured: true,
+            error: 'Срок действия промокода истёк.'
+          });
+        }
+        if (pr.max_uses !== undefined && pr.max_uses !== null && Number(pr.used_count || 0) >= Number(pr.max_uses)) {
+          return res.status(400).json({
+            ok: false,
+            configured: true,
+            error: 'Лимит использований промокода исчерпан.'
+          });
+        }
+        if (pr.min_subtotal !== undefined && pr.min_subtotal !== null && subtotal < Number(pr.min_subtotal)) {
+          return res.status(400).json({
+            ok: false,
+            configured: true,
+            error: `Промокод действует при заказе от ${Number(pr.min_subtotal)} ₽.`
+          });
+        }
+        appliedPromoCode = pr.code;
+        discount = Math.round((subtotal * Number(pr.discount_percent)) / 100);
       }
 
       const freeThreshold = Number(settings.freeShippingThreshold ?? 15000);
@@ -320,6 +388,13 @@ export default async function handler(req, res) {
       };
 
       await db.execute(buildOrderStatement(finalOrder));
+
+      if (appliedPromoCode) {
+        await db.execute({
+          sql: `UPDATE promos SET used_count = COALESCE(used_count, 0) + 1 WHERE code = ?`,
+          args: [appliedPromoCode]
+        });
+      }
     }
 
     const itemsLines = (finalOrder.items || [])

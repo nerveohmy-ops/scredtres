@@ -190,6 +190,6 @@ export default async function handler(req, res) {
     const reviews = mergeReviewsByPostId(pages);
     return res.status(200).json({ ok: true, reviews });
   } catch {
-    return res.status(200).json({ ok: false, reviews: [] });
+    return res.status(502).json({ ok: false, reviews: [], error: 'Upstream Telegram channel unavailable' });
   }
 }

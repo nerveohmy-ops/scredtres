@@ -1,7 +1,7 @@
 // Vercel Serverless Function - Telegram Webhook Handler
 // Runs 24/7 on Vercel without requiring a local machine
 import crypto from 'node:crypto';
-import { getBotToken } from '../lib/auth.js';
+import { getBotToken, resolveRoleFromUser, ROLES } from '../lib/auth.js';
 
 export const escapeHtml = (value) =>
   String(value ?? '')
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     // 1. When user sends /start
     if (msg.text && msg.text.startsWith('/start')) {
       let roleLine = '';
-      if (username === 'dybriansik') {
+      if (resolveRoleFromUser(msg.from) === ROLES.ADMIN) {
         roleLine = '\n\n👑 Вы вошли как владелец (@dybriansik) — панель управления открыта внутри магазина.';
       }
 

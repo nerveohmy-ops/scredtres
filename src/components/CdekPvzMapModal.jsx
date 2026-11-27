@@ -17,7 +17,8 @@ import { fetchCdekPvz, reverseGeocodePvz } from '../utils/api';
 import {
   haptic,
   requestUserLocation,
-  openTelegramLocationSettings
+  openTelegramLocationSettings,
+  registerBackHandler
 } from '../utils/telegram';
 
 function formatDistance(meters) {
@@ -147,6 +148,12 @@ export default function CdekPvzMapModal({
       }
     };
   }, [isOpen, initialCity, loadPoints]);
+
+  // Register Telegram native BackButton so tapping Back closes only the map modal
+  useEffect(() => {
+    if (!isOpen) return;
+    return registerBackHandler(() => onClose?.());
+  }, [isOpen, onClose]);
 
   // Keep map layout valid when toggling back from list view
   useEffect(() => {

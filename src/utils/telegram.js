@@ -1,44 +1,87 @@
 // Telegram WebApp SDK Helper
 import { isLocalDevEnvironment, OWNER_USERNAME, ROLES } from './roles';
 
-export const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
+export const getTg = () => (typeof window !== 'undefined' ? window.Telegram?.WebApp || null : null);
+export const tg = getTg();
 
 export const initTelegramApp = () => {
-  if (!tg) return;
+  const webApp = getTg();
+  if (!webApp) return;
 
   try {
-    tg.ready();
-    tg.expand();
+    webApp.ready();
+    webApp.expand();
+    webApp.disableVerticalSwipes?.();
 
-    if (tg.setHeaderColor) tg.setHeaderColor('#000000');
-    if (tg.setBackgroundColor) tg.setBackgroundColor('#000000');
+    webApp.setHeaderColor?.('#000000');
+    webApp.setBackgroundColor?.('#000000');
+    webApp.setBottomBarColor?.('#000000');
   } catch (err) {
     console.warn('Telegram WebApp init warning:', err);
   }
 };
 
 export const setClosingConfirmation = (enabled) => {
-  if (!tg) return;
+  const webApp = getTg();
+  if (!webApp) return;
   try {
-    if (enabled && tg.enableClosingConfirmation) {
-      tg.enableClosingConfirmation();
-    } else if (!enabled && tg.disableClosingConfirmation) {
-      tg.disableClosingConfirmation();
+    if (enabled && webApp.enableClosingConfirmation) {
+      webApp.enableClosingConfirmation();
+    } else if (!enabled && webApp.disableClosingConfirmation) {
+      webApp.disableClosingConfirmation();
     }
   } catch {}
 };
 
-export const setBackButton = (visible, onClick) => {
-  if (!tg?.BackButton) return;
+const backHandlerStack = [];
+let backListenerAttached = false;
+
+const dispatchBackClick = () => {
+  const top = backHandlerStack[backHandlerStack.length - 1];
+  if (typeof top === 'function') {
+    top();
+  }
+};
+
+function syncNativeBackButton() {
+  const webApp = getTg();
+  const btn = webApp?.BackButton;
+  if (!btn) return;
   try {
-    tg.BackButton.offClick(onClick);
-    if (visible) {
-      tg.BackButton.show();
-      tg.BackButton.onClick(onClick);
+    if (backHandlerStack.length > 0) {
+      if (!backListenerAttached) {
+        btn.onClick(dispatchBackClick);
+        backListenerAttached = true;
+      }
+      btn.show();
     } else {
-      tg.BackButton.hide();
+      if (backListenerAttached) {
+        btn.offClick(dispatchBackClick);
+        backListenerAttached = false;
+      }
+      btn.hide();
     }
   } catch {}
+}
+
+export const registerBackHandler = (handler) => {
+  if (typeof handler !== 'function') return () => {};
+  backHandlerStack.push(handler);
+  syncNativeBackButton();
+  return () => {
+    const idx = backHandlerStack.lastIndexOf(handler);
+    if (idx !== -1) backHandlerStack.splice(idx, 1);
+    syncNativeBackButton();
+  };
+};
+
+export const setBackButton = (visible, onClick) => {
+  const idx = backHandlerStack.lastIndexOf(onClick);
+  if (idx !== -1) backHandlerStack.splice(idx, 1);
+  if (visible && typeof onClick === 'function') {
+    backHandlerStack.push(onClick);
+  }
+  syncNativeBackButton();
 };
 
 export const haptic = {

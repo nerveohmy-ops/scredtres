@@ -62,14 +62,27 @@ export default function CheckoutModal({
 
   const cityTimerRef = useRef(null);
   const addrTimerRef = useRef(null);
+  const submitLockRef = useRef(false);
+  const idempotencyKeyRef = useRef('');
+
+  const createIdempotencyKey = () =>
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `ord_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = createIdempotencyKey();
+      }
+    } else {
       setOrderComplete(null);
       setFormError('');
       setCityOpen(false);
       setAddressOpen(false);
       setPvzMapOpen(false);
+      submitLockRef.current = false;
+      idempotencyKeyRef.current = '';
     }
   }, [isOpen]);
 
@@ -184,7 +197,7 @@ export default function CheckoutModal({
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (submitLockRef.current || isSubmitting) return;
     setFormError('');
 
     const tgFullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ').trim();
@@ -222,6 +235,7 @@ export default function CheckoutModal({
       }
     }
 
+    submitLockRef.current = true;
     setIsSubmitting(true);
     haptic.heavy();
 
@@ -231,6 +245,7 @@ export default function CheckoutModal({
         const cityCheck = await fetchAddressSuggestions({ mode: 'city', q: cleanCity });
         if (cityCheck.ok) {
           if (cityCheck.suggestions.length === 0) {
+            submitLockRef.current = false;
             setIsSubmitting(false);
             setFormError('Город не найден. Выберите существующий город из подсказок.');
             haptic.error();
@@ -250,6 +265,7 @@ export default function CheckoutModal({
         });
         if (addrCheck.ok) {
           if (addrCheck.suggestions.length === 0) {
+            submitLockRef.current = false;
             setIsSubmitting(false);
             setFormError('Адрес не найден в этом городе. Выберите реальный адрес из списка подсказок.');
             haptic.error();
@@ -257,6 +273,7 @@ export default function CheckoutModal({
           }
           const matched = addrCheck.suggestions.find((s) => s.hasHouse) || addrCheck.suggestions[0];
           if (!matched.hasHouse && !/\d/.test(cleanAddress)) {
+            submitLockRef.current = false;
             setIsSubmitting(false);
             setFormError('Уточните номер дома и выберите адрес из подсказок.');
             haptic.error();
@@ -271,9 +288,13 @@ export default function CheckoutModal({
 
     const orderId = `SCRED-${Math.floor(100000 + Math.random() * 900000)}`;
     const timestamp = new Date().toISOString();
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = createIdempotencyKey();
+    }
 
     const orderData = {
       orderId,
+      idempotencyKey: idempotencyKeyRef.current,
       timestamp,
       status: 'new',
       trackingNumber: '',
@@ -323,6 +344,7 @@ export default function CheckoutModal({
 
     const serverRes = await submitOrderToServer(orderData);
     if ((serverRes?.configured || serverRes?.error || dbConfigured) && !serverRes?.ok) {
+      submitLockRef.current = false;
       setIsSubmitting(false);
       setFormError(serverRes?.error || 'Не удалось сохранить заказ. Попробуйте снова.');
       haptic.error();
@@ -331,6 +353,8 @@ export default function CheckoutModal({
 
     const finalOrder = serverRes?.orderRecord || orderData;
 
+    submitLockRef.current = false;
+    idempotencyKeyRef.current = '';
     setIsSubmitting(false);
     setOrderComplete(finalOrder);
     setComment('');
@@ -339,10 +363,10 @@ export default function CheckoutModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-sm">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-[#080808] border border-[#1f1f1f] rounded-t-2xl sm:rounded-2xl z-10 max-h-[96vh] flex flex-col overflow-hidden shadow-2xl">
+      <div className="relative w-full max-w-lg bg-[#080808] border border-[#1f1f1f] rounded-t-2xl sm:rounded-2xl z-10 max-h-[92dvh] flex flex-col overflow-hidden shadow-2xl">
         
         {/* Header */}
         <div className="px-5 py-4 border-b border-[#141414] flex items-center justify-between bg-black">

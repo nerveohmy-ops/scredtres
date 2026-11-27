@@ -1,5 +1,5 @@
 // Authenticated Admin / Support mutation endpoint: POST /api/admin
-import { authenticateRequest, getBotToken, ROLES } from '../lib/auth.js';
+import { authenticateRequest, getAdminInitDataMaxAgeSec, getBotToken, ROLES } from '../lib/auth.js';
 import { getClientIpHash, checkRateLimit } from '../lib/rateLimit.js';
 import {
   ALLOWED_CATEGORIES,
@@ -368,7 +368,7 @@ export default async function handler(req, res) {
     return res.status(503).json({ ok: false, error: 'Turso database is not configured' });
   }
 
-  const auth = authenticateRequest(req);
+  const auth = authenticateRequest(req, { maxAgeSec: getAdminInitDataMaxAgeSec() });
   if (!auth.ok) {
     return res.status(401).json({ ok: false, error: 'Unauthorized: valid Telegram initData required' });
   }

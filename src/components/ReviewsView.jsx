@@ -12,7 +12,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { REVIEWS_CHANNEL_URL } from '../data/reviews';
-import { haptic, openTelegramLink } from '../utils/telegram';
+import { haptic, openTelegramLink, registerBackHandler } from '../utils/telegram';
 import { fetchLiveReviews } from '../utils/api';
 
 function formatReviewDate(isoDate) {
@@ -149,13 +149,17 @@ export default function ReviewsView({ onGoToCatalog }) {
 
   useEffect(() => {
     if (!lightbox) return;
+    const unregisterBack = registerBackHandler(() => closeLightbox());
     const onKeyDown = (e) => {
       if (e.key === 'Escape') closeLightbox();
       if (e.key === 'ArrowLeft') stepLightbox(-1);
       if (e.key === 'ArrowRight') stepLightbox(1);
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      unregisterBack();
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [lightbox, closeLightbox, stepLightbox]);
 
   const handleOpenTelegram = (url) => {

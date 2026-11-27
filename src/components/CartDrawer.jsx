@@ -9,6 +9,8 @@ export default function CartDrawer({
   onClose,
   items,
   promos = [],
+  appliedPromo = null,
+  onAppliedPromoChange,
   hasPromos = false,
   dbConfigured = false,
   isBrowserGuest = false,
@@ -20,17 +22,20 @@ export default function CartDrawer({
   onProceedToCheckout
 }) {
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState(null);
   const [promoError, setPromoError] = useState('');
   const [checkingPromo, setCheckingPromo] = useState(false);
 
+  const setAppliedPromo = (next) => {
+    onAppliedPromoChange?.(next);
+  };
+
   useEffect(() => {
     if (items.length === 0) {
-      setAppliedPromo(null);
+      onAppliedPromoChange?.(null);
       setPromoError('');
       setPromoInput('');
     }
-  }, [items.length]);
+  }, [items.length, onAppliedPromoChange]);
 
   if (!isOpen) return null;
 
@@ -226,27 +231,31 @@ export default function CartDrawer({
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-[#141414]">
-                      <div className="flex items-center gap-2 border border-[#222222] px-2 py-1 rounded-full">
+                      <div className="flex items-center gap-1 border border-[#222222] px-1 py-0.5 rounded-full">
                         <button
+                          type="button"
                           onClick={() => {
                             haptic.light();
                             onUpdateQuantity(item.product.id, item.size, item.quantity - 1);
                           }}
-                          className="text-[#888888] hover:text-white cursor-pointer"
+                          aria-label="Уменьшить количество"
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[#888888] hover:text-white cursor-pointer"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="w-4 text-center text-xs text-white">
+                        <span className="w-5 text-center text-xs text-white">
                           {item.quantity}
                         </span>
                         <button
+                          type="button"
                           onClick={() => {
                             haptic.light();
                             onUpdateQuantity(item.product.id, item.size, item.quantity + 1);
                           }}
-                          className="text-[#888888] hover:text-white cursor-pointer"
+                          aria-label="Увеличить количество"
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[#888888] hover:text-white cursor-pointer"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
 

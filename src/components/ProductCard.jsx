@@ -99,7 +99,7 @@ function ProductCard({
           type="button"
           onClick={handleFavoriteClick}
           aria-label="В избранное"
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/75 border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white hover:border-white transition-colors cursor-pointer"
+          className="absolute top-1.5 right-1.5 w-9 h-9 rounded-full bg-black/75 border border-white/15 flex items-center justify-center text-[#a3a3a3] hover:text-white hover:border-white transition-colors cursor-pointer"
         >
           <Heart
             className={`w-3.5 h-3.5 transition-colors ${
