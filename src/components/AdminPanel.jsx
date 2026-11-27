@@ -89,8 +89,13 @@ export default function AdminPanel({
   const [infoContent, setInfoContent] = useState('');
 
   // Promo editor state
+  const [editingPromoCode, setEditingPromoCode] = useState(null);
   const [promoCode, setPromoCode] = useState('');
   const [promoPercent, setPromoPercent] = useState('10');
+  const [promoMinItems, setPromoMinItems] = useState('');
+  const [promoMinSubtotal, setPromoMinSubtotal] = useState('');
+  const [promoMaxUses, setPromoMaxUses] = useState('');
+  const [promoExpiresAt, setPromoExpiresAt] = useState('');
   const [promoError, setPromoError] = useState('');
   const [isSavingPromo, setIsSavingPromo] = useState(false);
   const [copiedPromoCode, setCopiedPromoCode] = useState('');
@@ -305,13 +310,36 @@ export default function AdminPanel({
     setInfoContent('');
   };
 
-  // Promo handler
+  const resetPromoForm = () => {
+    setEditingPromoCode(null);
+    setPromoCode('');
+    setPromoPercent('10');
+    setPromoMinItems('');
+    setPromoMinSubtotal('');
+    setPromoMaxUses('');
+    setPromoExpiresAt('');
+    setPromoError('');
+  };
+
+  const handleStartEditPromo = (promo) => {
+    haptic.light();
+    setEditingPromoCode(promo.code);
+    setPromoCode(promo.code);
+    setPromoPercent(String(promo.discountPercent ?? 10));
+    setPromoMinItems(promo.minItems ? String(promo.minItems) : '');
+    setPromoMinSubtotal(promo.minSubtotal ? String(promo.minSubtotal) : '');
+    setPromoMaxUses(promo.maxUses ? String(promo.maxUses) : '');
+    setPromoExpiresAt(promo.expiresAt ? String(promo.expiresAt).slice(0, 10) : '');
+    setPromoError('');
+  };
+
+  // Promo handler (create & edit)
   const handlePromoSubmit = async (e) => {
     e.preventDefault();
     if (!isOwner) return;
     setPromoError('');
 
-    const cleanCode = promoCode.trim().toUpperCase();
+    const cleanCode = (editingPromoCode || promoCode).trim().toUpperCase();
     const pct = Math.min(90, Math.max(1, Math.round(Number(promoPercent) || 10)));
     if (!/^[A-Z0-9_-]{2,32}$/.test(cleanCode)) {
       setPromoError('Код: от 2 до 32 символов (латиница A-Z, цифры, _ или -).');
@@ -319,11 +347,42 @@ export default function AdminPanel({
       return;
     }
 
+    const parsedMinItems = promoMinItems.trim() ? Math.round(Number(promoMinItems)) : null;
+    if (parsedMinItems !== null && (!Number.isFinite(parsedMinItems) || parsedMinItems < 1 || parsedMinItems > 99)) {
+      setPromoError('Минимальное кол-во товаров должно быть от 1 до 99.');
+      haptic.error();
+      return;
+    }
+
+    const parsedMinSubtotal = promoMinSubtotal.trim() ? Math.round(Number(promoMinSubtotal)) : null;
+    if (parsedMinSubtotal !== null && (!Number.isFinite(parsedMinSubtotal) || parsedMinSubtotal < 1 || parsedMinSubtotal > 10000000)) {
+      setPromoError('Минимальная сумма заказа должна быть больше 0.');
+      haptic.error();
+      return;
+    }
+
+    const parsedMaxUses = promoMaxUses.trim() ? Math.round(Number(promoMaxUses)) : null;
+    if (parsedMaxUses !== null && (!Number.isFinite(parsedMaxUses) || parsedMaxUses < 1 || parsedMaxUses > 1000000)) {
+      setPromoError('Лимит активаций должен быть от 1 до 1 000 000.');
+      haptic.error();
+      return;
+    }
+
+    const expiresAtIso = promoExpiresAt.trim()
+      ? `${promoExpiresAt.trim()}T23:59:59.999Z`
+      : null;
+
+    const existingPromo = promos.find((p) => p.code === cleanCode);
     setIsSavingPromo(true);
     const res = await onAddPromo({
       code: cleanCode,
       discountPercent: pct,
-      createdAt: new Date().toISOString()
+      minItems: parsedMinItems,
+      minSubtotal: parsedMinSubtotal,
+      maxUses: parsedMaxUses,
+      usedCount: existingPromo?.usedCount || 0,
+      expiresAt: expiresAtIso,
+      createdAt: existingPromo?.createdAt || new Date().toISOString()
     });
     setIsSavingPromo(false);
 
@@ -334,8 +393,7 @@ export default function AdminPanel({
     }
 
     haptic.success();
-    setPromoCode('');
-    setPromoPercent('10');
+    resetPromoForm();
   };
 
   const handleCopyPromo = async (code) => {
@@ -1369,37 +1427,135 @@ export default function AdminPanel({
             </div>
 
             {isOwner && (
-              <form onSubmit={handlePromoSubmit} className="space-y-2">
-                <div className="flex flex-wrap sm:flex-nowrap gap-2">
-                  <input
-                    type="text"
-                    value={promoCode}
-                    onChange={(e) => {
-                      setPromoCode(e.target.value.toUpperCase());
-                      if (promoError) setPromoError('');
-                    }}
-                    placeholder="Код (напр. SCRED10)"
-                    className="flex-1 min-w-[160px] bg-black border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-full uppercase outline-none"
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    max="90"
-                    value={promoPercent}
-                    onChange={(e) => setPromoPercent(e.target.value)}
-                    placeholder="%"
-                    className="w-20 bg-black border border-[#222222] focus:border-white text-white px-3 py-2.5 rounded-full outline-none text-center"
-                  />
+              <form
+                onSubmit={handlePromoSubmit}
+                className="p-3.5 rounded-2xl bg-black border border-[#1f1f1f] space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-white">
+                    {editingPromoCode
+                      ? `Редактирование промокода ${editingPromoCode}`
+                      : 'Новый промокод'}
+                  </span>
+                  {editingPromoCode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptic.light();
+                        resetPromoForm();
+                      }}
+                      className="text-[11px] text-[#888888] hover:text-white inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Отмена</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] text-[#777777] mb-1">Код промокода *</label>
+                    <input
+                      type="text"
+                      disabled={Boolean(editingPromoCode)}
+                      value={promoCode}
+                      onChange={(e) => {
+                        setPromoCode(e.target.value.toUpperCase());
+                        if (promoError) setPromoError('');
+                      }}
+                      placeholder="Напр. SCRED15"
+                      className="w-full bg-[#080808] border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl uppercase outline-none disabled:opacity-60"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#777777] mb-1">Скидка (%) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="90"
+                      value={promoPercent}
+                      onChange={(e) => setPromoPercent(e.target.value)}
+                      placeholder="10"
+                      className="w-full bg-[#080808] border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] text-[#777777] mb-1">
+                      От кол-ва товаров (шт.)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      value={promoMinItems}
+                      onChange={(e) => setPromoMinItems(e.target.value)}
+                      placeholder="Любое (напр. 2)"
+                      className="w-full bg-[#080808] border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#777777] mb-1">
+                      Мин. сумма заказа (₽)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={promoMinSubtotal}
+                      onChange={(e) => setPromoMinSubtotal(e.target.value)}
+                      placeholder="Любая (напр. 10000)"
+                      className="w-full bg-[#080808] border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] text-[#777777] mb-1">
+                      Лимит активаций (раз)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={promoMaxUses}
+                      onChange={(e) => setPromoMaxUses(e.target.value)}
+                      placeholder="Без лимита (напр. 50)"
+                      className="w-full bg-[#080808] border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-[#777777] mb-1">
+                      Действует до (дата)
+                    </label>
+                    <input
+                      type="date"
+                      value={promoExpiresAt}
+                      onChange={(e) => setPromoExpiresAt(e.target.value)}
+                      className="w-full bg-[#080808] border border-[#222222] focus:border-white text-white px-3.5 py-2.5 rounded-xl outline-none"
+                    />
+                  </div>
+                </div>
+
+                {promoError && <p className="text-[11px] text-white px-0.5">{promoError}</p>}
+
+                <div className="flex items-center gap-2 pt-0.5">
                   <button
                     type="submit"
                     disabled={isSavingPromo}
-                    className="px-5 py-2.5 rounded-full bg-white text-black hover:bg-[#dddddd] font-semibold cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                    className="flex-1 py-2.5 px-5 rounded-full bg-white text-black hover:bg-[#dddddd] font-semibold cursor-pointer disabled:opacity-50 inline-flex items-center justify-center gap-1.5"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{isSavingPromo ? '...' : 'Добавить'}</span>
+                    {editingPromoCode ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    <span>
+                      {isSavingPromo
+                        ? 'Сохранение...'
+                        : editingPromoCode
+                        ? 'Сохранить изменения'
+                        : 'Создать промокод'}
+                    </span>
                   </button>
                 </div>
-                {promoError && <p className="text-[11px] text-white px-1">{promoError}</p>}
               </form>
             )}
 
@@ -1413,23 +1569,68 @@ export default function AdminPanel({
               <div className="space-y-2 pt-1">
                 {promos.map((p) => {
                   const isCopied = copiedPromoCode === p.code;
+                  const isExpired = Boolean(
+                    p.expiresAt && Number.isFinite(Date.parse(p.expiresAt)) && Date.parse(p.expiresAt) < Date.now()
+                  );
+                  const isExhausted = Boolean(
+                    p.maxUses && Number(p.usedCount || 0) >= Number(p.maxUses)
+                  );
                   return (
                     <div
                       key={p.code}
-                      className="px-3.5 py-2.5 rounded-xl bg-black border border-[#222222] flex items-center justify-between gap-2 text-white"
+                      className={`px-3.5 py-3 rounded-xl bg-black border flex flex-wrap items-center justify-between gap-2 text-white ${
+                        editingPromoCode === p.code ? 'border-white' : 'border-[#222222]'
+                      }`}
                     >
-                      <div className="flex flex-wrap items-center gap-2 min-w-0">
-                        <span className="font-mono font-bold tracking-wider text-white">
-                          {p.code}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#141414] border border-[#262626] text-[11px] text-[#dddddd]">
-                          -{p.discountPercent}%
-                        </span>
-                        {p.createdAt && (
-                          <span className="text-[10px] text-[#666666]">
-                            {new Date(p.createdAt).toLocaleDateString('ru-RU')}
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-bold tracking-wider text-white">
+                            {p.code}
                           </span>
-                        )}
+                          <span className="px-2 py-0.5 rounded-full bg-[#141414] border border-[#262626] text-[11px] text-[#dddddd]">
+                            -{p.discountPercent}%
+                          </span>
+                          {isExpired && (
+                            <span className="px-2 py-0.5 rounded-full bg-[#1a1a1a] border border-[#3a3a3a] text-[10px] text-[#aaaaaa]">
+                              Истёк
+                            </span>
+                          )}
+                          {isExhausted && (
+                            <span className="px-2 py-0.5 rounded-full bg-[#1a1a1a] border border-[#3a3a3a] text-[10px] text-[#aaaaaa]">
+                              Исчерпан
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-[#888888]">
+                          {p.minItems ? (
+                            <span className="px-2 py-0.5 rounded-full bg-[#0d0d0d] border border-[#1f1f1f] text-[#cccccc]">
+                              от {p.minItems} шт.
+                            </span>
+                          ) : null}
+                          {p.minSubtotal ? (
+                            <span className="px-2 py-0.5 rounded-full bg-[#0d0d0d] border border-[#1f1f1f] text-[#cccccc]">
+                              от {formatPrice(p.minSubtotal)}
+                            </span>
+                          ) : null}
+                          {p.maxUses ? (
+                            <span className="px-2 py-0.5 rounded-full bg-[#0d0d0d] border border-[#1f1f1f]">
+                              исп.: {Number(p.usedCount || 0)} / {p.maxUses}
+                            </span>
+                          ) : Number(p.usedCount || 0) > 0 ? (
+                            <span className="px-2 py-0.5 rounded-full bg-[#0d0d0d] border border-[#1f1f1f]">
+                              исп.: {p.usedCount}
+                            </span>
+                          ) : null}
+                          {p.expiresAt ? (
+                            <span className="px-2 py-0.5 rounded-full bg-[#0d0d0d] border border-[#1f1f1f]">
+                              до {new Date(p.expiresAt).toLocaleDateString('ru-RU')}
+                            </span>
+                          ) : null}
+                          {!p.minItems && !p.minSubtotal && !p.maxUses && !p.expiresAt && (
+                            <span className="text-[#666666]">Без ограничений</span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -1452,17 +1653,29 @@ export default function AdminPanel({
                           )}
                         </button>
                         {isOwner && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              haptic.light();
-                              onDeletePromo(p.code);
-                            }}
-                            aria-label={`Удалить промокод ${p.code}`}
-                            className="w-7 h-7 rounded-full border border-[#222222] hover:border-white flex items-center justify-center text-[#777777] hover:text-white cursor-pointer"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditPromo(p)}
+                              aria-label={`Редактировать промокод ${p.code}`}
+                              title="Редактировать промокод"
+                              className="w-7 h-7 rounded-full border border-[#222222] hover:border-white flex items-center justify-center text-[#aaaaaa] hover:text-white cursor-pointer"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                haptic.light();
+                                if (editingPromoCode === p.code) resetPromoForm();
+                                onDeletePromo(p.code);
+                              }}
+                              aria-label={`Удалить промокод ${p.code}`}
+                              className="w-7 h-7 rounded-full border border-[#222222] hover:border-white flex items-center justify-center text-[#777777] hover:text-white cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>

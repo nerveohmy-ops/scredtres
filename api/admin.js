@@ -260,6 +260,16 @@ function validateSettingsPayload(raw) {
   };
 }
 
+function parseOptionalPositiveInt(val, maxVal, fieldName) {
+  if (val === undefined || val === null || val === '') return { value: null };
+  const num = Number(val);
+  if (!Number.isFinite(num) || num < 0 || num > maxVal) {
+    return { error: `Invalid ${fieldName} (0..${maxVal})` };
+  }
+  const rounded = Math.round(num);
+  return { value: rounded > 0 ? rounded : null };
+}
+
 function validatePromoPayload(pr) {
   if (!isPlainObject(pr)) return { error: 'Invalid promo payload' };
   const code = String(pr.code || '').trim().toUpperCase();
@@ -270,6 +280,26 @@ function validatePromoPayload(pr) {
   if (!Number.isFinite(pct) || pct < 1 || pct > 90) {
     return { error: 'Invalid promo discountPercent (1..90)' };
   }
+
+  const minItemsCheck = parseOptionalPositiveInt(pr.minItems, 99, 'minItems');
+  if (minItemsCheck.error) return minItemsCheck;
+
+  const minSubtotalCheck = parseOptionalPositiveInt(pr.minSubtotal, 10000000, 'minSubtotal');
+  if (minSubtotalCheck.error) return minSubtotalCheck;
+
+  const maxUsesCheck = parseOptionalPositiveInt(pr.maxUses, 1000000, 'maxUses');
+  if (maxUsesCheck.error) return maxUsesCheck;
+
+  let expiresAt = null;
+  if (pr.expiresAt !== undefined && pr.expiresAt !== null && String(pr.expiresAt).trim() !== '') {
+    const rawExp = String(pr.expiresAt).trim();
+    const parsedExp = Date.parse(rawExp);
+    if (!Number.isFinite(parsedExp)) {
+      return { error: 'Invalid promo expiresAt date' };
+    }
+    expiresAt = new Date(parsedExp).toISOString();
+  }
+
   const createdAt =
     typeof pr.createdAt === 'string' && Number.isFinite(Date.parse(pr.createdAt))
       ? new Date(pr.createdAt).toISOString()
@@ -279,6 +309,10 @@ function validatePromoPayload(pr) {
     value: {
       code,
       discountPercent: Math.round(pct),
+      minItems: minItemsCheck.value,
+      minSubtotal: minSubtotalCheck.value,
+      maxUses: maxUsesCheck.value,
+      expiresAt,
       createdAt
     }
   };
@@ -655,18 +689,37 @@ export default async function handler(req, res) {
           return res.status(400).json({ ok: false, error: check.error });
         }
         await db.execute({
-          sql: `INSERT INTO promos (code, discount_percent, created_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(code) DO UPDATE SET discount_percent = excluded.discount_percent`,
-          args: [check.value.code, check.value.discountPercent, check.value.createdAt]
+          sql: `INSERT INTO promos (code, discount_percent, min_items, min_subtotal, max_uses, expires_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(code) DO UPDATE SET
+                  discount_percent = excluded.discount_percent,
+                  min_items = excluded.min_items,
+                  min_subtotal = excluded.min_subtotal,
+                  max_uses = excluded.max_uses,
+                  expires_at = excluded.expires_at`,
+          args: [
+            check.value.code,
+            check.value.discountPercent,
+            check.value.minItems,
+            check.value.minSubtotal,
+            check.value.maxUses,
+            check.value.expiresAt,
+            check.value.createdAt
+          ]
         });
         await recordAuditLog(db, {
           actor,
           action: 'add_promo',
           targetId: check.value.code,
-          details: { discountPercent: check.value.discountPercent }
+          details: {
+            discountPercent: check.value.discountPercent,
+            minItems: check.value.minItems,
+            minSubtotal: check.value.minSubtotal,
+            maxUses: check.value.maxUses,
+            expiresAt: check.value.expiresAt
+          }
         });
-        return res.status(200).json({ ok: true });
+        return res.status(200).json({ ok: true, promo: check.value });
       }
 
       case 'delete_promo': {
@@ -801,8 +854,17 @@ export default async function handler(req, res) {
           statements.push(`DELETE FROM promos`);
           for (const pr of validatedPromos) {
             statements.push({
-              sql: `INSERT INTO promos (code, discount_percent, created_at) VALUES (?, ?, ?)`,
-              args: [pr.code, pr.discountPercent, pr.createdAt]
+              sql: `INSERT INTO promos (code, discount_percent, min_items, min_subtotal, max_uses, expires_at, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              args: [
+                pr.code,
+                pr.discountPercent,
+                pr.minItems,
+                pr.minSubtotal,
+                pr.maxUses,
+                pr.expiresAt,
+                pr.createdAt
+              ]
             });
           }
           counts.promos = validatedPromos.length;

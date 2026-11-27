@@ -449,8 +449,15 @@ export default function App() {
     const freeThreshold = settings?.freeShippingThreshold ?? 15000;
     const stdShipping = settings?.standardShippingCost ?? 490;
     const subtotal = cart.reduce((sum, item) => sum + Number(item.product.price || 0) * item.quantity, 0);
-    const discountAmount = appliedPromo
-      ? Math.round((subtotal * Number(appliedPromo.discountPercent || 0)) / 100)
+    const totalQty = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const promoEligible = Boolean(
+      appliedPromo &&
+        (!appliedPromo.minItems || totalQty >= Number(appliedPromo.minItems)) &&
+        (!appliedPromo.minSubtotal || subtotal >= Number(appliedPromo.minSubtotal))
+    );
+    const activePromo = promoEligible ? appliedPromo : null;
+    const discountAmount = activePromo
+      ? Math.round((subtotal * Number(activePromo.discountPercent || 0)) / 100)
       : 0;
     const shippingCost = subtotal >= freeThreshold ? 0 : stdShipping;
     const total = Math.max(0, subtotal - discountAmount + shippingCost);
@@ -460,7 +467,7 @@ export default function App() {
       discountAmount,
       shippingCost,
       total,
-      appliedPromo
+      appliedPromo: activePromo
     };
   }, [cart, appliedPromo, settings]);
 

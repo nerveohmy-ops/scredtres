@@ -43,6 +43,7 @@ export default function CartDrawer({
   const STANDARD_SHIPPING_COST = settings?.standardShippingCost ?? 490;
 
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleApplyPromo = async (e) => {
     e.preventDefault();
@@ -67,6 +68,16 @@ export default function CartDrawer({
 
     const match = promos.find((p) => p.code.toUpperCase() === code);
     if (match) {
+      if (match.expiresAt && Date.parse(match.expiresAt) < Date.now()) {
+        setPromoError('Срок действия промокода истёк');
+        haptic.error();
+        return;
+      }
+      if (match.maxUses && Number(match.usedCount || 0) >= Number(match.maxUses)) {
+        setPromoError('Лимит использований промокода исчерпан');
+        haptic.error();
+        return;
+      }
       setAppliedPromo(match);
       setPromoError('');
       haptic.success();
@@ -76,7 +87,17 @@ export default function CartDrawer({
     }
   };
 
-  const discountAmount = appliedPromo
+  const missingItems =
+    appliedPromo?.minItems && totalQuantity < Number(appliedPromo.minItems)
+      ? Number(appliedPromo.minItems) - totalQuantity
+      : 0;
+  const missingSubtotal =
+    appliedPromo?.minSubtotal && subtotal < Number(appliedPromo.minSubtotal)
+      ? Number(appliedPromo.minSubtotal) - subtotal
+      : 0;
+  const isPromoActive = Boolean(appliedPromo && missingItems === 0 && missingSubtotal === 0);
+
+  const discountAmount = isPromoActive
     ? Math.round((subtotal * Number(appliedPromo.discountPercent)) / 100)
     : 0;
 
@@ -294,9 +315,34 @@ export default function CartDrawer({
                 </form>
 
                 {appliedPromo && (
-                  <div className="text-xs text-white flex justify-between py-1 px-1">
-                    <span>Промокод {appliedPromo.code} (-{appliedPromo.discountPercent}%)</span>
-                    <button onClick={() => setAppliedPromo(null)} className="text-[#888888] hover:text-white cursor-pointer">✕</button>
+                  <div className="space-y-1 px-1">
+                    <div className="text-xs text-white flex justify-between items-center py-0.5">
+                      <span>
+                        Промокод {appliedPromo.code} (-{appliedPromo.discountPercent}%)
+                        {!isPromoActive && (
+                          <span className="text-[#888888] ml-1.5 text-[11px]">· условия не выполнены</span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAppliedPromo(null)}
+                        className="text-[#888888] hover:text-white cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {!isPromoActive && (
+                      <div className="text-[11px] text-[#aaaaaa] bg-[#111111] border border-[#262626] rounded-lg px-2.5 py-1.5">
+                        Для активации скидки добавьте ещё:{' '}
+                        {[
+                          missingItems > 0 ? `${missingItems} шт.` : null,
+                          missingSubtotal > 0 ? `на ${formatPrice(missingSubtotal)}` : null
+                        ]
+                          .filter(Boolean)
+                          .join(' и ')}
+                        .
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -312,7 +358,7 @@ export default function CartDrawer({
                 <span>Сумма:</span>
                 <span className="text-white">{formatPrice(subtotal)}</span>
               </div>
-              {appliedPromo && (
+              {isPromoActive && discountAmount > 0 && (
                 <div className="flex justify-between text-white">
                   <span>Скидка:</span>
                   <span>-{formatPrice(discountAmount)}</span>

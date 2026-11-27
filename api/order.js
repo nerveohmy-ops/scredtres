@@ -321,6 +321,7 @@ export default async function handler(req, res) {
       });
 
       const subtotal = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+      const totalItemCount = verifiedItems.reduce((sum, i) => sum + i.quantity, 0);
 
       let appliedPromoCode = null;
       let discount = 0;
@@ -334,7 +335,7 @@ export default async function handler(req, res) {
           });
         }
         const promoRes = await db.execute({
-          sql: `SELECT code, discount_percent, max_uses, used_count, expires_at, min_subtotal FROM promos WHERE code = ? LIMIT 1`,
+          sql: `SELECT code, discount_percent, min_items, min_subtotal, max_uses, used_count, expires_at FROM promos WHERE code = ? LIMIT 1`,
           args: [requestedPromo]
         });
         const pr = promoRes.rows[0];
@@ -357,6 +358,13 @@ export default async function handler(req, res) {
             ok: false,
             configured: true,
             error: 'Лимит использований промокода исчерпан.'
+          });
+        }
+        if (pr.min_items !== undefined && pr.min_items !== null && totalItemCount < Number(pr.min_items)) {
+          return res.status(400).json({
+            ok: false,
+            configured: true,
+            error: `Промокод действует от ${Number(pr.min_items)} шт. в заказе.`
           });
         }
         if (pr.min_subtotal !== undefined && pr.min_subtotal !== null && subtotal < Number(pr.min_subtotal)) {
